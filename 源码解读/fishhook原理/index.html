@@ -25,19 +25,19 @@
   <meta name="description" content="fishhook简介 fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是动态修改 C 语言函数实现。  这个框架的代码其实非常的简单，只包含两个文件：fishhook.c 以及 fishhook.h；两个文件所有的代码加起来也不超过 300 行。   不过它的实现原理是非常有意思并且精妙的，不过在这之前，先让我们简单尝试一下  Fishhook 简单使用 例如，我hoo">
 <meta property="og:type" content="article">
 <meta property="og:title" content="fishhook原理">
-<meta property="og:url" content="http://qingheblog.online/2020/05/11/fishhook%E5%8E%9F%E7%90%86/index.html">
+<meta property="og:url" content="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/index.html">
 <meta property="og:site_name" content="遇见青禾">
 <meta property="og:description" content="fishhook简介 fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是动态修改 C 语言函数实现。  这个框架的代码其实非常的简单，只包含两个文件：fishhook.c 以及 fishhook.h；两个文件所有的代码加起来也不超过 300 行。   不过它的实现原理是非常有意思并且精妙的，不过在这之前，先让我们简单尝试一下  Fishhook 简单使用 例如，我hoo">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://camo.githubusercontent.com/18243516844d12b1bd158ce3687635d6e48d2e2e/687474703a2f2f692e696d6775722e636f6d2f4856587148437a2e706e67">
-<meta property="og:image" content="http://qingheblog.online/2020/05/11/fishhook%E5%8E%9F%E7%90%86/simpleTheory.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/simpleTheory.png">
 <meta property="article:published_time" content="2020-05-11T07:57:06.000Z">
 <meta property="article:modified_time" content="2020-05-11T08:16:50.886Z">
 <meta property="article:author" content="青禾">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://camo.githubusercontent.com/18243516844d12b1bd158ce3687635d6e48d2e2e/687474703a2f2f692e696d6775722e636f6d2f4856587148437a2e706e67">
 
-<link rel="canonical" href="http://qingheblog.online/2020/05/11/fishhook%E5%8E%9F%E7%90%86/">
+<link rel="canonical" href="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/">
 
 
 <script id="page-configurations">
@@ -161,7 +161,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/2020/05/11/fishhook%E5%8E%9F%E7%90%86/">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.JPG">
@@ -232,7 +232,7 @@
 <h3 id="Fishhook-原理简单图解"><a href="#Fishhook-原理简单图解" class="headerlink" title="Fishhook 原理简单图解"></a>Fishhook 原理简单图解</h3><p>1.寻址,本质就是对MachO文件中的几个表的对应关系的查找，感兴趣的可以深入的了解下MachO,后面的源码也会简单的说明</p>
 <p><img src="https://camo.githubusercontent.com/18243516844d12b1bd158ce3687635d6e48d2e2e/687474703a2f2f692e696d6775722e636f6d2f4856587148437a2e706e67" alt="Visual explanation"></p>
 <p>2.替换</p>
-<p><img src="/2020/05/11/fishhook%E5%8E%9F%E7%90%86/simpleTheory.png" alt="simpleTheory"></p>
+<p><img src="/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/simpleTheory.png" alt="simpleTheory"></p>
 <h3 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h3><p>首先入口函数<code>rebind_symbols</code>,接受一个<code>rebinding</code>结构体的数组，以及他的数组长度。可以一次hook多个函数</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//注册重新绑定符号的回调时机</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">rebind_symbols</span><span class="params">(struct rebinding rebindings[], <span class="keyword">size_t</span> rebindings_nel)</span> </span>&#123;</span><br><span class="line">    <span class="comment">//将需要hook的结构体链接成链表结构(之所以使用链表是因为在C语言中，处理这种预先不知道可能有多少个的集合来讲，链表是比较好的选择)</span></span><br><span class="line">  <span class="keyword">int</span> retval = prepend_rebindings(&amp;_rebindings_head, rebindings, rebindings_nel);</span><br><span class="line">    <span class="comment">//此处的异常主要用来处理malloc开辟空间失败</span></span><br><span class="line">  <span class="keyword">if</span> (retval &lt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> retval;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// If this was the first call, register callback for image additions (which is also invoked for</span></span><br><span class="line">  <span class="comment">// existing images, otherwise, just run on existing images</span></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     如果是第一次调用重新绑定符号的方法，就通过注册添加image(target module)的方法回调来重新绑定符号(这个方法在任何地方注册都会执行加载image的回调);</span></span><br><span class="line"><span class="comment">     如果不是第一次调用重新绑定符号的方法，就通过遍历当前已经加载的image来循环绑定符号(如果在此操作执行之后，又重新加载了image，可以通过_dyld_register_func_for_add_image来监听到);</span></span><br><span class="line"><span class="comment">     </span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">  <span class="keyword">if</span> (!_rebindings_head-&gt;next) &#123;</span><br><span class="line">    _dyld_register_func_for_add_image(_rebind_symbols_for_image);</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">uint32_t</span> c = _dyld_image_count();</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">uint32_t</span> i = <span class="number">0</span>; i &lt; c; i++) &#123;</span><br><span class="line">      _rebind_symbols_for_image(_dyld_get_image_header(i), _dyld_get_image_vmaddr_slide(i));</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//在方法内部调用rebind_symbols_for_image实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> _rebind_symbols_for_image(<span class="keyword">const</span> struct mach_header *header,</span><br><span class="line">                                      <span class="keyword">intptr_t</span> slide) &#123;</span><br><span class="line">    rebind_symbols_for_image(_rebindings_head, header, slide);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
@@ -258,7 +258,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="http://qingheblog.online/2020/05/11/fishhook%E5%8E%9F%E7%90%86/" title="fishhook原理">http://qingheblog.online/2020/05/11/fishhook原理/</a>
+    <a href="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/" title="fishhook原理">http://qingheblog.online/源码解读/fishhook原理/</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -275,11 +275,11 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2020/04/24/RSA%E5%8E%9F%E7%90%86/" rel="prev" title="RSA原理">
+    <a href="/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/" rel="prev" title="RSA原理">
       <i class="fa fa-chevron-left"></i> RSA原理
     </a></div>
       <div class="post-nav-item">
-    <a href="/2020/05/14/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/" rel="next" title="NSThead和内核线程的转换">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/" rel="next" title="NSThead和内核线程的转换">
       NSThead和内核线程的转换 <i class="fa fa-chevron-right"></i>
     </a></div>
     </div>
@@ -474,7 +474,7 @@ NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
       repo        : 'YaoJuan.github.io',
       owner       : 'YaoJuan',
       admin       : ['YaoJuan'],
-      id          : 'daebb6b7a75fff9264a636ea9f42578e',
+      id          : '89bd007d8e97cb0966c891a8bc952b55',
         language: '',
       distractionFreeMode: true
     });

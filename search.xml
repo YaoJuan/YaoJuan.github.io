@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/2020/05/14/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/2020/05/14/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>RSA原理</title>
     <url>/2020/04/24/RSA%E5%8E%9F%E7%90%86/</url>
     <content><![CDATA[<h3 id="历史"><a href="#历史" class="headerlink" title="历史"></a>历史</h3><p><em>1976年之前用的用的都是对称加密</em></p>

@@ -1,3 +1,499 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
+  <entry>
+    <title>RSA原理</title>
+    <url>/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/</url>
+    <content><![CDATA[<h3 id="历史"><a href="#历史" class="headerlink" title="历史"></a>历史</h3><p><em>1976年之前用的用的都是对称加密</em></p>
+<blockquote>
+<p>（1）甲方选择某一种加密规则，对信息进行加密；</p>
+<p>（2）乙方使用同一种规则，对信息进行解密。</p>
+</blockquote>
+<p><em>1976年，两位美国计算机学家Whitfield Diffie 和 Martin Hellman，提出了一种崭新构思，可以在不直接传递密钥的情况下，完成解密。这被称为<a href="http://en.wikipedia.org/wiki/Diffie–Hellman_key_exchange" target="_blank" rel="noopener">“Diffie-Hellman密钥交换算法”</a>。这个算法启发了其他科学家。人们认识到，加密和解密可以使用不同的规则，只要这两种规则之间存在某种对应关系即可，这样就避免了直接传递密钥</em></p>
+<p><em>如果公钥加密的信息只有私钥解得开，那么只要私钥不泄漏，通信就是安全的。</em></p>
+<blockquote>
+<p>（1）乙方生成两把密钥（公钥和私钥）。公钥是公开的，任何人都可以获得，私钥则是保密的。</p>
+<p>（2）甲方获取乙方的公钥，然后用它对信息加密。</p>
+<p>（3）乙方得到加密后的信息，用私钥解密。</p>
+</blockquote>
+<p>1977年，三位数学家Rivest、Shamir 和 Adleman 设计了一种算法，可以实现非对称加密。这种算法用他们三个人的名字命名，叫做<a href="http://zh.wikipedia.org/zh-cn/RSA加密算法" target="_blank" rel="noopener">RSA算法</a>。从那时直到现在，RSA算法一直是最广为使用的”非对称加密算法”。毫不夸张地说，只要有计算机网络的地方，就有RSA算法。</p>
+<p>这种算法非常<a href="http://en.wikipedia.org/wiki/RSA_Factoring_Challenge" target="_blank" rel="noopener">可靠</a>，密钥越长，它就越难破解。根据已经披露的文献，目前被破解的最长RSA密钥是768个二进制位。也就是说，长度超过768位的密钥，还无法破解（至少没人公开宣布）。因此可以认为，1024位的RSA密钥基本安全，2048位的密钥极其安全。(归根结底是因为破解RSA需要求)</p>
+<p>下面，我就进入正题，解释RSA算法的原理。文章共分成两部分，今天是第一部分，介绍要用到的四个数学概念。你可以看到，RSA算法并不难，只需要一点<a href="http://jeremykun.com/2011/07/30/number-theory-a-primer/" target="_blank" rel="noopener">数论知识</a>就可以理解。</p>
+<h3 id="互质关系"><a href="#互质关系" class="headerlink" title="互质关系"></a>互质关系</h3><p><em>质数</em>是指在大于1的自然数中，除了1和它本身以外不再有其他因数的自然数。</p>
+<p>*如果两个正整数，除了1以外，没有其他公因子，我们就称这两个数是<a href="http://zh.wikipedia.org/zh-cn/互素" target="_blank" rel="noopener">互质关系</a>（coprime）。比如，15和32没有公因子，所以它们是互质关系。这说明，不是质数也可以构成互质关系。</p>
+<p>关于互质关系，不难得到以下结论：</p>
+<blockquote>
+<ol>
+<li><p>任意两个质数构成互质关系，比如13和61。</p>
+</li>
+<li><p>一个数是质数，另一个数只要不是前者的倍数，两者就构成互质关系，比如3和10。</p>
+</li>
+<li><p>如果两个数之中，较大的那个数是质数，则两者构成互质关系，比如97和57。</p>
+</li>
+<li><p>1和任意一个自然数是都是互质关系，比如1和99。</p>
+</li>
+<li><p>p是大于1的整数，则p和p-1构成互质关系，比如57和56。</p>
+</li>
+<li><p>p是大于1的奇数，则p和p-2构成互质关系，比如17和15。</p>
+</li>
+</ol>
+</blockquote>
+<h3 id="欧拉函数"><a href="#欧拉函数" class="headerlink" title="欧拉函数"></a>欧拉函数</h3><blockquote>
+<p>任意给定正整数n，请问在小于等于n的正整数之中，有多少个与n构成互质关系？（比如，在1到8之中，有多少个数与8构成互质关系？）</p>
+</blockquote>
+<p>计算这个值的方法就叫<em>欧拉函数<em>，以<u></u></em>φ(n)</em>表示，在1到8之中，与8形成互质关系的是1、3、5、7，所以 φ(n) = 4。φ(n) 的计算方法并不复杂，但是为了得到最后那个公式，需要一步步讨论。</p>
+<p>第一种情况</p>
+<p>如果n=1，则 φ(1) = 1 。因为1与任何数（包括自身）都构成互质关系。</p>
+<p>第二种情况</p>
+<p>如果n是质数，则 φ(n)=n-1 。因为质数与小于它的每一个数，都构成互质关系。比如5与1、2、3、4都构成互质关系。</p>
+<p>第三种情况</p>
+<p>如果n是质数的某一个次方，即 n = p^k (p为质数，k为大于等于1的整数)，则</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0573f4a25a.png" alt="2015-08-04/55c0573f4a25a"></p>
+<p>比如 φ(8) = φ(2^3) =2^3 - 2^2 = 8 -4 = 4。</p>
+<p>这是因为只有当一个数不包含质数p，才可能与n互质。而包含质数p的数一共有p^(k-1)个，即1×p、2×p、3×p、…、p^(k-1)×p，把它们去除，剩下的就是与n互质的数。</p>
+<p>上面的式子还可以写成下面的形式：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0578076585.png" alt="2015-08-04/55c0578076585"></p>
+<p>可以看出，上面的第二种情况是 k=1 时的特例。</p>
+<p>第四种情况</p>
+<p>如果n可以分解成两个互质的整数之积，</p>
+<blockquote>
+<p>n = p1 × p2</p>
+</blockquote>
+<p>则</p>
+<blockquote>
+<p>φ(n) = φ(p1p2) = φ(p1)φ(p2)</p>
+</blockquote>
+<p>即积的欧拉函数等于各个因子的欧拉函数之积。比如，φ(56)=φ(8×7)=φ(8)×φ(7)=4×6=24。</p>
+<p>这一条的证明要用到<a href="http://en.wikipedia.org/wiki/Chinese_remainder_theorem" target="_blank" rel="noopener">“中国剩余定理”</a>，这里就不展开了，只简单说一下思路：如果a与p1互质(a&lt;p1)，b与p2互质(b&lt;p2)，c与p1p2互质(c&lt;p1p2)，则c与数对 (a,b) 是一一对应关系。由于a的值有φ(p1)种可能，b的值有φ(p2)种可能，则数对 (a,b) 有φ(p1)φ(p2)种可能，而c的值有φ(p1p2)种可能，所以φ(p1p2)就等于φ(p1)φ(p2)。</p>
+<p>第五种情况</p>
+<p>因为任意一个大于1的正整数，都可以写成一系列质数的积。<br><img src="https://box.kancloud.cn/2015-08-04_55c057f99f735.png" alt="2015-08-04/55c057f99f735"></p>
+<p>根据第4条的结论，得到<br><img src="https://box.kancloud.cn/2015-08-04_55c05835ca6e2.png" alt="2015-08-04/55c05835ca6e2"></p>
+<p>再根据第3条的结论，得到</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05871f2594.png" alt="2015-08-04/55c05871f2594"></p>
+<p>也就等于</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c058b16129e.png" alt="2015-08-04/55c058b16129e"></p>
+<p>这就是欧拉函数的通用计算公式。比如，1323的欧拉函数，计算过程如下：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059446c936.png" alt="2015-08-04/55c059446c936"></p>
+<h3 id="欧拉定理"><a href="#欧拉定理" class="headerlink" title="欧拉定理"></a>欧拉定理</h3><p>欧拉函数的用处，在于[欧拉定理]。”欧拉定理”指的是：</p>
+<blockquote>
+<p>如果两个正整数a和n互质，则n的欧拉函数 φ(n) 可以让下面的等式成立：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059520a3e8.png" alt="2015-08-04/55c059520a3e8"></p>
+</blockquote>
+<p>也就是说，a的φ(n)次方被n除的余数为1。或者说，a的φ(n)次方减去1，可以被n整除。比如，3和7互质，而7的欧拉函数φ(7)等于6，所以3的6次方（729）减去1，可以被7整除（728/7=104）。</p>
+<p>欧拉定理的证明比较复杂，这里就省略了。我们只要记住它的结论就行了。</p>
+<p>欧拉定理可以大大简化某些运算。比如，7和10互质，根据欧拉定理，</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05962e83e9.png" alt="2015-08-04/55c05962e83e9"></p>
+<p>已知 φ(10) 等于4，所以马上得到7的4倍数次方的个位数肯定是1。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0596cb6dd4.png" alt="2015-08-04/55c0596cb6dd4"></p>
+<p>因此，7的任意次方的个位数（例如7的222次方），心算就可以算出来。</p>
+<p>欧拉定理有一个特殊情况。</p>
+<blockquote>
+<p>假设正整数a与质数p互质，因为质数p的φ(p)等于p-1，则欧拉定理可以写成</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0597866ff0.png" alt="2015-08-04/55c0597866ff0"></p>
+</blockquote>
+<p>这就是著名的<a href="http://zh.wikipedia.org/wiki/费马小定理" target="_blank" rel="noopener">费马小定理</a>。它是欧拉定理的特例。</p>
+<p>欧拉定理是RSA算法的核心。理解了这个定理，就可以理解RSA。</p>
+<h3 id="模反元素"><a href="#模反元素" class="headerlink" title="模反元素"></a>模反元素</h3><blockquote>
+<p>如果两个正整数a和n互质，那么一定可以找到整数b，使得 ab-1 被n整除，或者说ab被n除的余数是1。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059871365d.png" alt="2015-08-04/55c059871365d"></p>
+<p>这时，b就叫做a的<a href="http://zh.wikipedia.org/wiki/模反元素" target="_blank" rel="noopener">“模反元素”</a>。</p>
+</blockquote>
+<p>比如，3和11互质，那么3的模反元素就是4，因为 (3 × 4)-1 可以被11整除。显然，模反元素不止一个， 4加减11的整数倍都是3的模反元素 {…,-18,-7,4,15,26,…}，即如果b是a的模反元素，则 b+kn 都是a的模反元素。</p>
+<p>欧拉定理可以用来证明模反元素必然存在。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059984b9aa.png" alt="2015-08-04/55c059984b9aa"></p>
+<p>可以看到，a的 φ(n)-1 次方，就是a的模反元素。</p>
+<h3 id="密钥生成的步骤"><a href="#密钥生成的步骤" class="headerlink" title="密钥生成的步骤"></a>密钥生成的步骤</h3><p>前面我介绍了一些数论知识。<br>有了这些知识，我们就可以看懂RSA算法。这是目前地球上最重要的加密算法。</p>
+<p>我们通过一个例子，来理解RSA算法。假设<a href="http://zh.wikipedia.org/wiki/爱丽丝与鲍伯" target="_blank" rel="noopener">爱丽丝</a>要与鲍勃进行加密通信，她该怎么生成公钥和私钥呢？</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05a8911a90.png" alt="img"></p>
+<p>第一步，随机选择两个不相等的质数p和q。</p>
+<p>爱丽丝选择了61和53。（实际应用中，这两个质数越大，就越难破解。）</p>
+<p>第二步，计算p和q的乘积n。</p>
+<p>爱丽丝就把61和53相乘。</p>
+<blockquote>
+<p>n = 61×53 = 3233</p>
+</blockquote>
+<p>n的长度就是密钥长度。3233写成二进制是110010100001，一共有12位，所以这个密钥就是12位。实际应用中，RSA密钥一般是1024位，重要场合则为2048位。</p>
+<p>第三步，计算n的欧拉函数φ(n)。</p>
+<p>根据公式：</p>
+<blockquote>
+<p>φ(n) = (p-1)(q-1)</p>
+</blockquote>
+<p>爱丽丝算出φ(3233)等于60×52，即3120。</p>
+<p>第四步，随机选择一个整数e，条件是1</p>
+<p>爱丽丝就在1到3120之间，随机选择了17。（实际应用中，常常选择65537。）</p>
+<p>第五步，计算e对于φ(n)的模反元素d。</p>
+<p>所谓<a href="http://zh.wikipedia.org/wiki/模反元素" target="_blank" rel="noopener">“模反元素”</a>就是指有一个整数d，可以使得ed被φ(n)除的余数为1。</p>
+<blockquote>
+<p>ed ≡ 1 (mod φ(n))</p>
+</blockquote>
+<p>这个式子等价于</p>
+<blockquote>
+<p>ed - 1 = kφ(n)</p>
+</blockquote>
+<p>于是，找到模反元素d，实质上就是对下面这个二元一次方程求解。</p>
+<blockquote>
+<p>ex + φ(n)y = 1</p>
+</blockquote>
+<p>已知 e=17, φ(n)=3120，</p>
+<blockquote>
+<p>17x + 3120y = 1</p>
+</blockquote>
+<p>这个方程可以用<a href="http://zh.wikipedia.org/wiki/扩展欧几里得算法" target="_blank" rel="noopener">“扩展欧几里得算法”</a>求解，此处省略具体过程。总之，爱丽丝算出一组整数解为 (x,y)=(2753,-15)，即 d=2753。</p>
+<p>至此所有计算完成。</p>
+<p>第六步，将n和e封装成公钥，n和d封装成私钥。</p>
+<p>在爱丽丝的例子中，n=3233，e=17，d=2753，所以公钥就是 (3233,17)，私钥就是（3233, 2753）。</p>
+<p>实际应用中，公钥和私钥的数据都采用<a href="http://zh.wikipedia.org/zh-cn/ASN.1" target="_blank" rel="noopener">ASN.1</a>格式表达（<a href="http://hi.baidu.com/mathack/item/d0ad4cc1514a3663f7c95da2" target="_blank" rel="noopener">实例</a>）。</p>
+<h3 id="RSA的可靠性以及破解"><a href="#RSA的可靠性以及破解" class="headerlink" title="RSA的可靠性以及破解"></a>RSA的可靠性以及破解</h3><p>回顾上面的密钥生成步骤，一共出现六个数字：</p>
+<blockquote>
+<p>p<br>　　q<br>　　n<br>　　φ(n)<br>　　e<br>　　d</p>
+</blockquote>
+<p>这六个数字之中，公钥用到了两个（n和e），其余四个数字都是不公开的。其中最关键的是d，因为n和d组成了私钥，一旦d泄漏，就等于私钥泄漏。</p>
+<p>那么，有无可能在已知n和e的情况下，推导出d？</p>
+<blockquote>
+<p>（1）ed≡1 (mod φ(n))。只有知道e和φ(n)，才能算出d。</p>
+<p>（2）φ(n)=(p-1)(q-1)。只有知道p和q，才能算出φ(n)。</p>
+<p>（3）n=pq。只有将n因数分解，才能算出p和q。</p>
+</blockquote>
+<p>结论：如果n可以被因数分解，d就可以算出，也就意味着私钥被破解。</p>
+<p>可是，大整数的因数分解，是一件非常困难的事情。目前，除了暴力破解，还没有发现别的有效方法。维基百科这样写道：</p>
+<blockquote>
+<p>“对极大整数做因数分解的难度决定了RSA算法的可靠性。换言之，对一极大整数做因数分解愈困难，RSA算法愈可靠。</p>
+<p>假如有人找到一种快速因数分解的算法，那么RSA的可靠性就会极度下降。但找到这样的算法的可能性是非常小的。今天只有短的RSA密钥才可能被暴力破解。到2008年为止，世界上还没有任何可靠的攻击RSA算法的方式。</p>
+<p>只要密钥长度足够长，用RSA加密的信息实际上是不能被解破的。”</p>
+</blockquote>
+<p>举例来说，你可以对3233进行因数分解（61×53），但是你没法对下面这个整数进行因数分解。</p>
+<blockquote>
+<p>​       12301866845301177551304949<br>　　58384962720772853569595334<br>　　79219732245215172640050726<br>　　36575187452021997864693899<br>　　56474942774063845925192557<br>　　32630345373154826850791702<br>　　61221429134616704292143116<br>　　02221240479274737794080665<br>　　351419597459856902143413</p>
+</blockquote>
+<p>它等于这样两个质数的乘积：</p>
+<blockquote>
+<p>​       33478071698956898786044169<br>　　84821269081770479498371376<br>　　85689124313889828837938780<br>　　02287614711652531743087737<br>　　814467999489<br>　　　　×<br>　　36746043666799590428244633<br>　　79962795263227915816434308<br>　　76426760322838157396665112<br>　　79233373417143396810270092<br>　　798736308917</p>
+</blockquote>
+<p>事实上，这大概是人类已经分解的最大整数（232个十进制位，768个二进制位）。比它更大的因数分解，还没有被报道过，因此目前被破解的最长RSA密钥就是768位。</p>
+<h3 id="加密和解密"><a href="#加密和解密" class="headerlink" title="加密和解密"></a>加密和解密</h3><p>有了公钥和密钥，就能进行加密和解密了。</p>
+<p>（1）加密要用公钥 (n,e)</p>
+<p>假设鲍勃要向爱丽丝发送加密信息m，他就要用爱丽丝的公钥 (n,e) 对m进行加密。这里需要注意，m必须是整数（字符串可以取ascii值或unicode值），且m必须小于n。</p>
+<p>所谓”加密”，就是算出下式的c：</p>
+<blockquote>
+<p>me ≡ c (mod n)</p>
+</blockquote>
+<p>爱丽丝的公钥是 (3233, 17)，鲍勃的m假设是65，那么可以算出下面的等式：</p>
+<blockquote>
+<p>6517 ≡ 2790 (mod 3233)</p>
+</blockquote>
+<p>于是，c等于2790，鲍勃就把2790发给了爱丽丝。</p>
+<p>（2）解密要用私钥(n,d)</p>
+<p>爱丽丝拿到鲍勃发来的2790以后，就用自己的私钥(3233, 2753) 进行解密。可以证明，下面的等式一定成立：</p>
+<blockquote>
+<p>cd ≡ m (mod n)</p>
+</blockquote>
+<p>也就是说，c的d次方除以n的余数为m。现在，c等于2790，私钥是(3233, 2753)，那么，爱丽丝算出</p>
+<blockquote>
+<p>27902753 ≡ 65 (mod 3233)</p>
+</blockquote>
+<p>因此，爱丽丝知道了鲍勃加密前的原文就是65。</p>
+<p>至此，”加密–解密”的整个过程全部完成。</p>
+<p>我们可以看到，如果不知道d，就没有办法从c求出m。而前面已经说过，要知道d就必须分解n，这是极难做到的，所以RSA算法保证了通信安全。</p>
+<p>你可能会问，公钥(n,e) 只能加密小于n的整数m，那么如果要加密大于n的整数，该怎么办？有两种解决方法：一种是把长信息分割成若干段短消息，每段分别加密；另一种是先选择一种”对称性加密算法”（比如<a href="https://zh.wikipedia.org/wiki/资料加密标准" target="_blank" rel="noopener">DES</a>），用这种算法的密钥加密信息，再用RSA公钥加密DES密钥。</p>
+<p>但是RSA比较慢，rsa慢在他以幂模运算为基础，也就是c^e mod N。</p>
+<h3 id="解密和加密的证明"><a href="#解密和加密的证明" class="headerlink" title="解密和加密的证明"></a>解密和加密的证明</h3><p>最后，我们来证明，为什么用私钥解密，一定可以正确地得到m。也就是证明下面这个式子：</p>
+<blockquote>
+<p>cd ≡ m (mod n)</p>
+</blockquote>
+<p>因为，根据加密规则</p>
+<blockquote>
+<p>ｍe ≡ c (mod n)</p>
+</blockquote>
+<p>于是，c可以写成下面的形式：</p>
+<blockquote>
+<p>c = me - kn</p>
+</blockquote>
+<p>将c代入要我们要证明的那个解密规则：</p>
+<blockquote>
+<p>(me - kn)d ≡ m (mod n)</p>
+</blockquote>
+<p>它等同于求证</p>
+<blockquote>
+<p>med ≡ m (mod n)</p>
+</blockquote>
+<p>由于</p>
+<blockquote>
+<p>ed ≡ 1 (mod φ(n))</p>
+</blockquote>
+<p>所以</p>
+<blockquote>
+<p>ed = hφ(n)+1</p>
+</blockquote>
+<p>将ed代入：</p>
+<blockquote>
+<p>mhφ(n)+1 ≡ m (mod n)</p>
+</blockquote>
+<p>接下来，分成两种情况证明上面这个式子。</p>
+<p>（1）m与n互质。</p>
+<p>根据欧拉定理，此时</p>
+<blockquote>
+<p>mφ(n) ≡ 1 (mod n)</p>
+</blockquote>
+<p>得到</p>
+<blockquote>
+<p>(mφ(n))h × m ≡ m (mod n)</p>
+</blockquote>
+<p>原式得到证明。</p>
+<p>（2）m与n不是互质关系。</p>
+<p>此时，由于n等于质数p和q的乘积，所以m必然等于kp或kq。</p>
+<p>以 m = kp为例，考虑到这时k与q必然互质，则根据欧拉定理，下面的式子成立：</p>
+<blockquote>
+<p>(kp)q-1 ≡ 1 (mod q)</p>
+</blockquote>
+<p>进一步得到</p>
+<blockquote>
+<p>[(kp)q-1]h(p-1) × kp ≡ kp (mod q)</p>
+</blockquote>
+<p>即</p>
+<blockquote>
+<p>(kp)ed ≡ kp (mod q)</p>
+</blockquote>
+<p>将它改写成下面的等式</p>
+<blockquote>
+<p>(kp)ed = tq + kp</p>
+</blockquote>
+<p>这时t必然能被p整除，即 t=t’p</p>
+<blockquote>
+<p>(kp)ed = t’pq + kp</p>
+</blockquote>
+<p>因为 m=kp，n=pq，所以</p>
+<blockquote>
+<p>med ≡ m (mod n)</p>
+</blockquote>
+<p>原式得到证明。</p>
+]]></content>
+      <categories>
+        <category>算法</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>fishhook原理</title>
+    <url>/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/</url>
+    <content><![CDATA[<h3 id="fishhook简介"><a href="#fishhook简介" class="headerlink" title="fishhook简介"></a>fishhook简介</h3><p>fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是<strong>动态修改 C 语言函数实现</strong>。</p>
+<p>这个框架的代码其实非常的简单，只包含两个文件：<code>fishhook.c</code> 以及 <code>fishhook.h</code>；两个文件所有的代码加起来也不超过 300 行。</p>
+<p> 不过它的实现原理是非常有意思并且精妙的，不过在这之前，先让我们简单尝试一下</p>
+<h3 id="Fishhook-简单使用"><a href="#Fishhook-简单使用" class="headerlink" title="Fishhook 简单使用"></a>Fishhook 简单使用</h3><p>例如，我hook一个系统的NSLog方法，大概的代码就是这样</p>
+<blockquote>
+<p>1.写一个自己的func来做hook的事，例如文中的MYLog</p>
+<p>2.定义一个函数指针用来保存被hook的函数，方便后续调用</p>
+<p>3.创建一个<code>rebinding</code>结构体，给三个参数赋值，然后调用<code>rebind_symbols</code>，一个hook就已经完成</p>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>)hook</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebinding</span> <span class="title">logRebind</span>;</span></span><br><span class="line">    logRebind.name = <span class="string">"NSLog"</span>;</span><br><span class="line">    logRebind.replacement = MyLog;</span><br><span class="line">    logRebind.replaced = (<span class="keyword">void</span> *)&amp;originalNSLog;</span><br><span class="line">    </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebinding</span> <span class="title">rebs</span>[] = &#123;</span>logRebind&#125;;    </span><br><span class="line">    rebind_symbols(rebs, <span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="title">void</span> <span class="params">(*originalNSLog)</span><span class="params">(NSString *format, ...)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">MyLog</span><span class="params">(NSString *format, ...)</span></span>&#123;</span><br><span class="line">    <span class="comment">// do sth you  want</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// orignal func</span></span><br><span class="line">    originalNSLog(format);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>相信有很多人和我一样有一些不解，OC的runtime是基于OC动态运行时的本质做了交换，但是NSLog是一个C语言函数，是静态的。这是如何做到的呢？这些可以在fishhook的源码中可以找到，不过在这之前，我们先补充一点基础 知识</p>
+<h3 id="前瞻理论"><a href="#前瞻理论" class="headerlink" title="前瞻理论"></a>前瞻理论</h3><p>我们上面示例代码中，NSLog是一个属于Foundation的库的函数，在编译过程中，其实他并不在我们文件中。对于我们应用程序来说，本质是一个二进制执行文件，有个更专业的词，叫<a href="https://zh.wikipedia.org/wiki/Mach-O" target="_blank" rel="noopener">MachO</a>,当<a href="https://zh.wikipedia.org/wiki/Mach-O" target="_blank" rel="noopener">MachO</a>被内核加载到内存中开始运行时，有一个叫<a href="https://en.wikipedia.org/wiki/Dynamic_linker" target="_blank" rel="noopener">DYLD</a>做了一系列的事情，其中一步叫做加载共享缓存区(shareCache),DYLD做了一系列的加载链接。那么苹果如果在编译时保证这种并不确定的静态呢，苹果为了能在 Mach-O 文件中访问外部函数，采用了一个技术，叫做<a href="https://en.wikipedia.org/wiki/Position-independent_code" target="_blank" rel="noopener">PIC</a>（位置代码独立）技术。</p>
+<p>当你的应用程序想要调用 Mach-O 文件外部的函数的时候，或者说如果 Mach-O 内部需要调用系统的库函数时，Mach-O 文件会：</p>
+<blockquote>
+<ol>
+<li>先在 Mach-O 文件的 _DATA 段中建立一个指针,这个指针变量指向外部函数。</li>
+<li>DYLD 会动态的进行绑定！将 Mach-O 中的 _DATA 段中的指针，指向外部函数。</li>
+</ol>
+</blockquote>
+<p>fishhook本质就是找这个符号名，已经把这个符号名的符号给替换掉的过程，下面可以通过2张图简单了解一下</p>
+<h3 id="Fishhook-原理简单图解"><a href="#Fishhook-原理简单图解" class="headerlink" title="Fishhook 原理简单图解"></a>Fishhook 原理简单图解</h3><p>1.寻址,本质就是对MachO文件中的几个表的对应关系的查找，感兴趣的可以深入的了解下MachO,后面的源码也会简单的说明</p>
+<p><img src="https://camo.githubusercontent.com/18243516844d12b1bd158ce3687635d6e48d2e2e/687474703a2f2f692e696d6775722e636f6d2f4856587148437a2e706e67" alt="Visual explanation"></p>
+<p>2.替换</p>
+<p><img src="/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/simpleTheory.png" alt="simpleTheory"></p>
+<h3 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h3><p>首先入口函数<code>rebind_symbols</code>,接受一个<code>rebinding</code>结构体的数组，以及他的数组长度。可以一次hook多个函数</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">//注册重新绑定符号的回调时机</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">rebind_symbols</span><span class="params">(struct rebinding rebindings[], <span class="keyword">size_t</span> rebindings_nel)</span> </span>&#123;</span><br><span class="line">    <span class="comment">//将需要hook的结构体链接成链表结构(之所以使用链表是因为在C语言中，处理这种预先不知道可能有多少个的集合来讲，链表是比较好的选择)</span></span><br><span class="line">  <span class="keyword">int</span> retval = prepend_rebindings(&amp;_rebindings_head, rebindings, rebindings_nel);</span><br><span class="line">    <span class="comment">//此处的异常主要用来处理malloc开辟空间失败</span></span><br><span class="line">  <span class="keyword">if</span> (retval &lt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> retval;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// If this was the first call, register callback for image additions (which is also invoked for</span></span><br><span class="line">  <span class="comment">// existing images, otherwise, just run on existing images</span></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     如果是第一次调用重新绑定符号的方法，就通过注册添加image(target module)的方法回调来重新绑定符号(这个方法在任何地方注册都会执行加载image的回调);</span></span><br><span class="line"><span class="comment">     如果不是第一次调用重新绑定符号的方法，就通过遍历当前已经加载的image来循环绑定符号(如果在此操作执行之后，又重新加载了image，可以通过_dyld_register_func_for_add_image来监听到);</span></span><br><span class="line"><span class="comment">     </span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">  <span class="keyword">if</span> (!_rebindings_head-&gt;next) &#123;</span><br><span class="line">    _dyld_register_func_for_add_image(_rebind_symbols_for_image);</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">uint32_t</span> c = _dyld_image_count();</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">uint32_t</span> i = <span class="number">0</span>; i &lt; c; i++) &#123;</span><br><span class="line">      _rebind_symbols_for_image(_dyld_get_image_header(i), _dyld_get_image_vmaddr_slide(i));</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//在方法内部调用rebind_symbols_for_image实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> _rebind_symbols_for_image(<span class="keyword">const</span> struct mach_header *header,</span><br><span class="line">                                      <span class="keyword">intptr_t</span> slide) &#123;</span><br><span class="line">    rebind_symbols_for_image(_rebindings_head, header, slide);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>获取链接表，符号表，动态符号表，重定向(<a href="[https://zh.wikipedia.org/wiki/%E4%BD%8D%E5%9D%80%E7%A9%BA%E9%96%93%E9%85%8D%E7%BD%AE%E9%9A%A8%E6%A9%9F%E8%BC%89%E5%85%A5](https://zh.wikipedia.org/wiki/位址空間配置隨機載入)">ASLR</a>)表在内存中的地址，获取<strong>la_symbol_ptr以及</strong>ln_symbol_ptr对应的section，方便找到后续的对应的两个表</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">rebind_symbols_for_image</span><span class="params">(struct rebindings_entry *rebindings,</span></span></span><br><span class="line"><span class="function"><span class="params">                                     <span class="keyword">const</span> struct mach_header *header,</span></span></span><br><span class="line"><span class="function"><span class="params">                                     <span class="keyword">intptr_t</span> slide)</span> </span>&#123;</span><br><span class="line">  Dl_info info;</span><br><span class="line">  <span class="keyword">if</span> (dladdr(header, &amp;info) == <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="keyword">segment_command_t</span> *cur_seg_cmd;</span><br><span class="line">  <span class="keyword">segment_command_t</span> *linkedit_segment = <span class="literal">NULL</span>;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">symtab_command</span>* <span class="title">symtab_cmd</span> = <span class="title">NULL</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">dysymtab_command</span>* <span class="title">dysymtab_cmd</span> = <span class="title">NULL</span>;</span></span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">    <span class="comment">//第一次遍历load Commands主要是为了找到链接表linkedit_segment,符号表(symtab_cmd),动态符号表(dysymtab_cmd)对应的load command</span></span><br><span class="line">  <span class="keyword">uintptr_t</span> cur = (<span class="keyword">uintptr_t</span>)header + <span class="keyword">sizeof</span>(<span class="keyword">mach_header_t</span>);<span class="comment">//使用uintptr_t类型主要是为了方便按照字节为单位移动指针的位置</span></span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (<span class="keyword">segment_command_t</span> *)cur;</span><br><span class="line">      </span><br><span class="line">    <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;</span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_LINKEDIT) == <span class="number">0</span>) &#123;</span><br><span class="line">        linkedit_segment = cur_seg_cmd;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SYMTAB) &#123;</span><br><span class="line">      symtab_cmd = (struct symtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_DYSYMTAB) &#123;</span><br><span class="line">      dysymtab_cmd = (struct dysymtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="keyword">if</span> (!symtab_cmd || !dysymtab_cmd || !linkedit_segment ||</span><br><span class="line">      !dysymtab_cmd-&gt;nindirectsyms) &#123;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="comment">// 通过使用__LINKEDIT的起始地址找到symbol table/string table在内存中的地址</span></span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">  <span class="keyword">uintptr_t</span> linkedit_base = (<span class="keyword">uintptr_t</span>)slide + linkedit_segment-&gt;vmaddr - linkedit_segment-&gt;fileoff;</span><br><span class="line">  <span class="keyword">nlist_t</span> *symtab = (<span class="keyword">nlist_t</span> *)(linkedit_base + symtab_cmd-&gt;symoff);</span><br><span class="line">  <span class="keyword">char</span> *strtab = (<span class="keyword">char</span> *)(linkedit_base + symtab_cmd-&gt;stroff); <span class="comment">//使用char *类型是因为字符在内存中按照char为单位进行存储</span></span><br><span class="line"> </span><br><span class="line">  <span class="comment">// 获取重定向表在内存中的位置</span></span><br><span class="line">  <span class="keyword">uint32_t</span> *indirect_symtab = (<span class="keyword">uint32_t</span> *)(linkedit_base + dysymtab_cmd-&gt;indirectsymoff); <span class="comment">//使用uint32_t *是因为重定向符号表中数据按照4字节为单位进行存储</span></span><br><span class="line"> </span><br><span class="line">  cur = (<span class="keyword">uintptr_t</span>)header + <span class="keyword">sizeof</span>(<span class="keyword">mach_header_t</span>);</span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (<span class="keyword">segment_command_t</span> *)cur;</span><br><span class="line">    <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;</span><br><span class="line">       <span class="comment">//找到DATA和DATA_CONST segment，并跳过</span></span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_DATA) != <span class="number">0</span> &amp;&amp;</span><br><span class="line">          <span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_DATA_CONST) != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">      &#125;</span><br><span class="line"> </span><br><span class="line">        <span class="comment">////找到__nl_symbol_ptr和__la_symbol_ptr这两个section</span></span><br><span class="line">      <span class="keyword">for</span> (uint j = <span class="number">0</span>; j &lt; cur_seg_cmd-&gt;nsects; j++) &#123;</span><br><span class="line">        <span class="keyword">section_t</span> *sect =</span><br><span class="line">          (<span class="keyword">section_t</span> *)(cur + <span class="keyword">sizeof</span>(<span class="keyword">segment_command_t</span>)) + j;</span><br><span class="line">        <span class="keyword">if</span> ((sect-&gt;flags &amp; SECTION_TYPE) == S_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">            <span class="comment">//遍历懒加载符号表中的符号，与_rebindings_head进行比较，对匹配的符号进行重新绑定</span></span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> ((sect-&gt;flags &amp; SECTION_TYPE) == S_NON_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">            <span class="comment">//遍历非懒加载符号表中的符号，与_rebindings_head进行比较，对匹配的符号进行重新绑定</span></span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>查找并替换_rebindings_head中需要替换的符号</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">perform_rebinding_with_section</span><span class="params">(struct rebindings_entry *rebindings,</span></span></span><br><span class="line"><span class="function"><span class="params">                                           <span class="keyword">section_t</span> *section,</span></span></span><br><span class="line"><span class="function"><span class="params">                                           <span class="keyword">intptr_t</span> slide,</span></span></span><br><span class="line"><span class="function"><span class="params">                                           <span class="keyword">nlist_t</span> *symtab,</span></span></span><br><span class="line"><span class="function"><span class="params">                                           <span class="keyword">char</span> *strtab,</span></span></span><br><span class="line"><span class="function"><span class="params">                                           <span class="keyword">uint32_t</span> *indirect_symtab)</span> </span>&#123;</span><br><span class="line">    <span class="comment">//section在indirect table中的索引从reserved1处开始</span></span><br><span class="line">  <span class="keyword">uint32_t</span> *indirect_symbol_indices = indirect_symtab + section-&gt;reserved1;</span><br><span class="line">    <span class="comment">// //indirect Symbols中包含了各个section中符号在Symbol Table的index，这里是直接定位到对应__DATA,__la_symbol_ptr所在的index数组</span></span><br><span class="line">  <span class="keyword">void</span> **indirect_symbol_bindings = (<span class="keyword">void</span> **)((<span class="keyword">uintptr_t</span>)slide + section-&gt;addr);</span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; section-&gt;<span class="built_in">size</span> / <span class="keyword">sizeof</span>(<span class="keyword">void</span> *); i++) &#123;</span><br><span class="line">      <span class="comment">//获取indirext table中对应索引处的值，该值表示在symbole table中的索引</span></span><br><span class="line">    <span class="keyword">uint32_t</span> symtab_index = indirect_symbol_indices[i];</span><br><span class="line">      <span class="comment">//如果该索引表示的符号是未绑定前的符号或者本地符号，则不进行任何操作</span></span><br><span class="line">    <span class="keyword">if</span> (symtab_index == INDIRECT_SYMBOL_ABS || symtab_index == INDIRECT_SYMBOL_LOCAL ||</span><br><span class="line">        symtab_index == (INDIRECT_SYMBOL_LOCAL   | INDIRECT_SYMBOL_ABS)) &#123;</span><br><span class="line">      <span class="keyword">continue</span>;</span><br><span class="line">    &#125;</span><br><span class="line">      <span class="comment">//获取在string table中偏移</span></span><br><span class="line">    <span class="keyword">uint32_t</span> strtab_offset = symtab[symtab_index].n_un.n_strx;</span><br><span class="line">      <span class="comment">//获取在string table中的地址</span></span><br><span class="line">    <span class="keyword">char</span> *symbol_name = strtab + strtab_offset;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebindings_entry</span> *<span class="title">cur</span> = <span class="title">rebindings</span>;</span></span><br><span class="line">      <span class="comment">//遍历找到需要重新绑定的符号,进行重新绑定</span></span><br><span class="line">    <span class="keyword">while</span> (cur) &#123;</span><br><span class="line">      <span class="keyword">for</span> (uint j = <span class="number">0</span>; j &lt; cur-&gt;rebindings_nel; j++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">strlen</span>(symbol_name) &gt; <span class="number">1</span> &amp;&amp;</span><br><span class="line">            <span class="built_in">strcmp</span>(&amp;symbol_name[<span class="number">1</span>], cur-&gt;rebindings[j].name) == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="comment">//防止重复绑定</span></span><br><span class="line">          <span class="keyword">if</span> (cur-&gt;rebindings[j].replaced != <span class="literal">NULL</span> &amp;&amp;</span><br><span class="line">              indirect_symbol_bindings[i] != cur-&gt;rebindings[j].replacement) &#123;</span><br><span class="line">              <span class="comment">//如果符号对应的实现不是自定义实现，说明符号没有还重新绑定，将符号对应的真实实现存入cur-&gt;rebindings[j].replaced对应位置</span></span><br><span class="line">            *(cur-&gt;rebindings[j].replaced) = indirect_symbol_bindings[i];</span><br><span class="line">          &#125;</span><br><span class="line">            <span class="comment">//将自定义实现，存入符号对应的位置</span></span><br><span class="line">          indirect_symbol_bindings[i] = cur-&gt;rebindings[j].replacement;</span><br><span class="line">            <span class="comment">// 跳出，避免多次绑定</span></span><br><span class="line">          <span class="keyword">goto</span> symbol_loop;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      cur = cur-&gt;next;</span><br><span class="line">    &#125;</span><br><span class="line">  symbol_loop:;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="是否能hook在项目或者静态库中的定义的C函数"><a href="#是否能hook在项目或者静态库中的定义的C函数" class="headerlink" title="是否能hook在项目或者静态库中的定义的C函数"></a>是否能hook在项目或者静态库中的定义的C函数</h3><p>答案是不能！！！因为无论在项目中还是静态库中的函数，在编译的时候它们的地址就已经确定(Mach-O基地址+偏移)，它们不会存在于<code>__la_symbol_ptr</code>表中，自然也就无法更改。</p>
+]]></content>
+      <categories>
+        <category>源码解读</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>浅谈函数调用栈</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>目前项目需要做一个检测卡顿的工具，但是在检测卡顿完我们肯定是希望能找出具体的函数调用栈方便查找问题以及业务同学更改。所以我们需要提前准备一个能够实时查看函数调用栈的工具，其实这些已经有比较成熟的方案了，但是我们还是需要知道这些原理。</p>
+<h3 id="系统方法"><a href="#系统方法" class="headerlink" title="系统方法"></a>系统方法</h3><p>我们知道 <code>NSThread</code> 有一个类方法 <code>callstackSymbols</code> 可以获取调用栈，但是它输出的是当前线程的调用栈。局限性很大，我们更多的时候是在一个子线程长期观测其他线程的状态</p>
+<p>最简单、自然的想法就是利用 <code>dispatch_async</code> 或 <code>performSelectorOnMainThread</code> 等方法，回到主线程并获取调用栈。但是并不可行</p>
+<p>我们以 <code>UIViewController</code> 的<code>viewDidLoad</code> 方法为例，推测它底层都发生了什么。</p>
+<p>首先主线程也是线程，就得按照线程基本法来办事。线程基本法说的是首先要把线程运行起来，然后(如果有必要，比如主线程)启动 runloop 进行保活。我们知道 runloop 的本质就是一个死循环，在循环中调用多个函数，分别判断 source0、source1、timer、dispatch_queue 等事件源有没有要处理的内容。</p>
+<p>和 UI 相关的事件都是 source0，因此会执行 <code>__CFRunLoopDoSources0</code>，最终一步步走到 <code>viewDidLoad</code>。当事件处理完后 runloop 进入休眠状态。</p>
+<p>假设我们使用 <code>dispatch_async</code>，它会唤醒 runloop 并处理事件，但此时 <code>__CFRunLoopDoSources0</code> 已经执行完毕，不可能获取到 <code>viewDidLoad</code> 的调用栈。</p>
+<p><code>performSelector</code> 系列方法的底层也依赖于 runloop，因此它只是像当前的 runloop 提交了一个任务，但是依然要等待现有任务完成以后才能执行，所以拿不到实时的调用栈。</p>
+<h3 id="寄存器"><a href="#寄存器" class="headerlink" title="寄存器"></a><a href="[https://zh.wikipedia.org/zh/%E5%AF%84%E5%AD%98%E5%99%A8](https://zh.wikipedia.org/zh/寄存器)">寄存器</a></h3><p>寄存器是和CPU联系非常紧密的一小块内存，经常用于存储一些正在使用的数据。ARM64 有34个寄存器，包括31个通用寄存器、SP、PC、CPSR。调用约定指定他们其中的一些寄存器有特殊的用途，例如：</p>
+<ul>
+<li>x0-x28：通用寄存器，如果有需要可以当做32bit使用：WO-W30(兼容32位)</li>
+<li>x29(FP)：通常用作桢指针fp（frame pointer寄存器），栈帧基址寄存器，指向当前函数栈帧的栈底</li>
+<li>x30(LR)：是链接寄存器lr(link register)。它保存了当目前函数返回时下一个函数的地址；</li>
+<li>SP：栈指针sp(stack pointer)。在计算机科学内栈是非常重要的术语。寄存器存放了一个指向栈顶的指针。使用 SP/WSP来进行对SP寄存器的访问。</li>
+<li>PC：是程序计数器pc(program counter)。它存放了当前执行指令的地址。在每个指令执行完成后会自动增加；</li>
+<li>CPSR: 状态寄存器</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">_STRUCT_ARM_THREAD_STATE64</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">__uint64_t</span> __x[<span class="number">29</span>];     <span class="comment">/* General purpose registers x0-x28 */</span></span><br><span class="line">    <span class="keyword">void</span>*      __opaque_fp; <span class="comment">/* Frame pointer x29 */</span></span><br><span class="line">    <span class="keyword">void</span>*      __opaque_lr; <span class="comment">/* Link register x30 */</span></span><br><span class="line">    <span class="keyword">void</span>*      __opaque_sp; <span class="comment">/* Stack pointer x31 */</span></span><br><span class="line">    <span class="keyword">void</span>*      __opaque_pc; <span class="comment">/* Program counter */</span></span><br><span class="line">    <span class="keyword">__uint32_t</span> __cpsr;      <span class="comment">/* Current program status register */</span></span><br><span class="line">    <span class="keyword">__uint32_t</span> __opaque_flags; <span class="comment">/* Flags describing structure format */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>不同指令集的寄存器数量可能会不同，pc、lr、sp、fp也可能使用其中不同的寄存器。后面我们先忽略X29等寄存器编号，直接用fp，sp，lr来讲述</p>
+<h3 id="栈"><a href="#栈" class="headerlink" title="栈"></a><a href="[https://zh.wikipedia.org/wiki/%E5%A0%86%E6%A0%88](https://zh.wikipedia.org/wiki/堆栈)">栈</a></h3><p>栈：是一种具有特殊的访问方式的存储空间（后进先出， Last In Out Firt，LIFO）</p>
+<blockquote>
+<p>Stack 是由内存区域的结束地址开始，从高位（地址）向低位（地址）分配。比如，内存区域的结束地址是0x8000，第一帧假定是16字节，那么下一次分配的地址就会从0x7FF0开始；第二帧假定需要64字节，那么地址就会移动到0x7FB0。</p>
+</blockquote>
+<p>“调用栈”（call stack）既可以指具体实现，也可以指一种抽象概念——由“栈帧￼”（stack frame）或者叫“活动记录”（activation record）构成的栈</p>
+<h3 id><a href="#" class="headerlink" title></a></h3><h3 id="栈帧"><a href="#栈帧" class="headerlink" title="栈帧"></a>栈帧</h3><p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/stack_frame.png" alt="stack_frame"></p>
+<p>​                                                     (图片来源自wikipedia)</p>
+<p>在上图中，是2个函数的调用,<code>DrawSquare</code>调用了<code>DrwaLine</code>,其中绿色和蓝色就分别代表了2个栈帧，多个栈帧就组合了我们的函数调用栈，上图中是一个递增栈，但是在ARM中一般都是递减栈，但是我们可以看到，一张栈帧结构中包含着Return Address，也就是当前活动记录执行结束后要返回的地址（展开）。</p>
+<p>那么，在我们获取到栈帧后，就可以通过返回地址来进行回溯了。</p>
+<p>如下图所示，不管是较早的帧，还是调用者的帧，还是当前帧，它们的结构是完全一样的，因为每个帧都是基于一个函数，帧伴随着函数的生命周期一起产生、发展和消亡。在这个过程中用到了上面说的寄存器，fp(ebp)帧指针，它总是指向当前帧的底部；sp(esp)栈顶指针，它总是指向当前帧的顶部。这两个寄存器用来定位当前帧中的所有空间。编译器需要根据指令集的规则小心翼翼地调整这两个寄存器的值，一旦出错，参数传递、函数返回都可能出现问题。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/stackframe_x86.jpg" alt="stackframe_x86"></p>
+<p>其实这里这几个寄存器会满足一定规则，比如：</p>
+<ul>
+<li>fp(ebp)指向的是当面栈帧的底部，该地址存的值是调用当前栈帧的上一个栈帧的fp(esp)的地址。</li>
+<li>lr(eip)总是在上一个栈帧（也就是调用当前栈帧的栈帧）的顶部，而栈帧之间是连续存储的，所以lr也就是当前栈帧底部的上一个地址，以此类推就可以推出所有函数的调用顺序。这里注意，栈底在高地址，栈向下增长</li>
+</ul>
+<p><strong>Pseudocode</strong></p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">while</span>(fp) &#123;</span><br><span class="line">  lr = *(fp + <span class="number">1</span>);</span><br><span class="line">  <span class="comment">// store lr</span></span><br><span class="line">  fp = *fp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="函数的地址"><a href="#函数的地址" class="headerlink" title="函数的地址"></a>函数的地址</h3><p>在上面的过程中，我们可以拿到所有的LR的值，但是LR里保存的其实是一个cpu在执行完当前函数要返回的指令地址。我们怎么通过他拿到真正的函数入口地址呢。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">funcFirstStep</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    funcSecondStep();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">funcSecondStep</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// do nothing</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    funcFirstStep();</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">HookTest`funcFirstStep:</span><br><span class="line">-&gt;  <span class="number">0x1049e1600</span> &lt;+<span class="number">0</span>&gt;:  stp    x29, x30, [sp, #<span class="number">-0x10</span>]!</span><br><span class="line">    <span class="number">0x1049e1604</span> &lt;+<span class="number">4</span>&gt;:  mov    x29, sp</span><br><span class="line">    <span class="number">0x1049e1608</span> &lt;+<span class="number">8</span>&gt;:  bl     <span class="number">0x1049e1614</span>               ; funcSecondStep at main.m:<span class="number">20</span>:<span class="number">1</span></span><br><span class="line">    <span class="number">0x1049e160c</span> &lt;+<span class="number">12</span>&gt;: ldp    x29, x30, [sp], #<span class="number">0x10</span></span><br><span class="line">    <span class="number">0x1049e1610</span> &lt;+<span class="number">16</span>&gt;: ret</span><br></pre></td></tr></table></figure>
+
+<p>这是<code>funcFirstStep</code>的汇编代码，<code>0x1049e1600</code>其实就是函数地址，但是我们只能拿到LR的地址,在执行完<code>0x1049e1608</code>这条跳转指令时，转到<code>funcSecondStep</code>的栈帧中，然后需要保存<code>0x1049e160c</code>这条地址(LR),用来保证cpu在执行完<code>funcSecondStep</code>知道继续在哪里执行。所以每个LR都有一个特点，他是距离他函数入口地址最近的一个LR,并且他的地址比函数入口地址大，大多少暂时未知，取决于当前函数要执行多少条pc寄存器的指令(也就是函数复杂度)，暂且让我们先记住这个特点。</p>
+<h3 id="获取当前线程的寄存器状态"><a href="#获取当前线程的寄存器状态" class="headerlink" title="获取当前线程的寄存器状态"></a>获取当前线程的寄存器状态</h3><p>当检测到需要获取函数调用栈时，我们需要拿到当前的寄存器信息，正好mach有提供这样的一组API</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">mach_msg_type_number_t</span> count = x86_THREAD_STATE64_COUNT;</span><br><span class="line">thread_get_state(thread, x86_THREAD_STATE64, (<span class="keyword">thread_state_t</span>)&amp;ctx.__ss, &amp;count);</span><br></pre></td></tr></table></figure>
+
+<p>会根据传入的线程以及架构，返回对应的架构状态的结构体，其中就包括了线程寄存器状态，例如ARM64来说</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">_STRUCT_MCONTEXT64</span><br><span class="line">&#123;</span><br><span class="line">    _STRUCT_ARM_EXCEPTION_STATE64   es;</span><br><span class="line">    _STRUCT_ARM_THREAD_STATE64      ss;</span><br><span class="line">    _STRUCT_ARM_NEON_STATE64        ns;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>其中ss就是就是我们在寄存器章节中提到的结构体。在源码中，还有这么一段代码,是为了适配cpu的架构类型适配，所以在传入cpu架构类型参数以及后续返回值的时候，我们也可以写对应的宏来做处理，方便代码的健壮性，这里就不展开了</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">ifndef</span> _MCONTEXT_T</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> _MCONTEXT_T</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> defined(__arm64__)</span></span><br><span class="line"><span class="keyword">typedef</span> _STRUCT_MCONTEXT64      *<span class="keyword">mcontext_t</span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> _STRUCT_MCONTEXT _STRUCT_MCONTEXT64</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line"><span class="keyword">typedef</span> _STRUCT_MCONTEXT32      *<span class="keyword">mcontext_t</span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> _STRUCT_MCONTEXT        _STRUCT_MCONTEXT32</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span> <span class="comment">/* _MCONTEXT_T */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>但是其中有一个关键参数是要传入线程<code>thread</code>,这是一个<code>thread_state_t</code>类型，即kernel线程，并不是NSThread，系统并没有提供直接转换的方法，所以我们需要先做线程转换。</p>
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>这一块也是比较大的知识，本质是一个映射的过程，具体可以参见上一篇博客<br><a href="/原理分析/NSThead和内核线程的转换">NSThead和内核线程的转换</a></p>
+<h3 id="获取所有LR寄存器的实现"><a href="#获取所有LR寄存器的实现" class="headerlink" title="获取所有LR寄存器的实现"></a>获取所有LR寄存器的实现</h3><p>首先定义了一个数组，用来存放所有需要获取寄存器的值，自定义最大数量为50个，避免更深的栈的深度的性能问题，这个可以自己取舍。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">getThreadAllLRandFirstPc</span><span class="params">(<span class="keyword">thread_t</span> thread, <span class="keyword">uintptr_t</span>* backtraceBuffer, <span class="keyword">int</span> * bufferLengh)</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">int</span> i = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// get context</span></span><br><span class="line">    _STRUCT_MCONTEXT machineContext;</span><br><span class="line">    <span class="keyword">if</span>(!bs_fillThreadStateIntoMachineContext(thread, &amp;machineContext)) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// pc</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uintptr_t</span> instructionAddress = bs_mach_instructionAddress(&amp;machineContext);</span><br><span class="line">    <span class="comment">// machineContext-&gt;__ss.pc;</span></span><br><span class="line">    backtraceBuffer[i] = instructionAddress;</span><br><span class="line">    ++i;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// first lr</span></span><br><span class="line">    <span class="keyword">uintptr_t</span> linkRegister = bs_mach_linkRegister(&amp;machineContext);</span><br><span class="line">    <span class="keyword">if</span> (linkRegister) &#123;</span><br><span class="line">        backtraceBuffer[i] = linkRegister;</span><br><span class="line">        i++;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span>(instructionAddress == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> ;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    BSStackFrameEntry frame = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">    <span class="comment">// get fp</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uintptr_t</span> framePtr = bs_mach_framePointer(&amp;machineContext);</span><br><span class="line">    <span class="keyword">if</span>(framePtr == <span class="number">0</span> ||</span><br><span class="line">       <span class="comment">// read  16 byte start with fp, 8byte -&gt;lr ,8byte -&gt; last fp</span></span><br><span class="line">       bs_mach_copyMem((<span class="keyword">void</span> *)framePtr, &amp;frame, <span class="keyword">sizeof</span>(frame)) != KERN_SUCCESS) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// recursion</span></span><br><span class="line">    <span class="keyword">for</span>(; i &lt; <span class="number">50</span>; i++) &#123;</span><br><span class="line">        backtraceBuffer[i] = frame.return_address;</span><br><span class="line">        <span class="keyword">if</span>(backtraceBuffer[i] == <span class="number">0</span> ||</span><br><span class="line">           frame.previous == <span class="number">0</span> ||</span><br><span class="line">           bs_mach_copyMem(frame.previous, &amp;frame, <span class="keyword">sizeof</span>(frame)) != KERN_SUCCESS) &#123;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    *bufferLengh = i;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="符号化"><a href="#符号化" class="headerlink" title="符号化"></a>符号化</h3><p>就像 “把大象关进冰箱需要几步” 一样，获取 函数 对应的符号名也可以分为以下几步:</p>
+<ol>
+<li>根据 LR或者PC 找到函数属于哪个镜像文件(也就是上面取出的那些地址)</li>
+<li>找到镜像的符号表和字符串表</li>
+<li>找到LR或者PC最接近符号表的哪个地址</li>
+<li>在字符串表中找到接近的地址的函数名</li>
+</ol>
+<p>不过在这里需要注意一个内存对齐的问题，不同的操作系统对齐方式不一样，arm64指针是4字节对齐</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> -mark Symbolicate</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">bs_symbolicate</span><span class="params">(<span class="keyword">const</span> <span class="keyword">uintptr_t</span>* <span class="keyword">const</span> backtraceBuffer,</span></span></span><br><span class="line"><span class="function"><span class="params">                    Dl_info* <span class="keyword">const</span> symbolsBuffer,</span></span></span><br><span class="line"><span class="function"><span class="params">                    <span class="keyword">const</span> <span class="keyword">int</span> numEntries,</span></span></span><br><span class="line"><span class="function"><span class="params">                    <span class="keyword">const</span> <span class="keyword">int</span> skippedEntries)</span></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> i = <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span>(!skippedEntries &amp;&amp; i &lt; numEntries) &#123;</span><br><span class="line">        <span class="comment">// 第一次是pc寄存器，不需要考虑内存对齐</span></span><br><span class="line">        bs_dladdr(backtraceBuffer[i], &amp;symbolsBuffer[i]);</span><br><span class="line">        i++;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span>(; i &lt; numEntries; i++) &#123;</span><br><span class="line">        <span class="comment">// 后续需要考虑到不同操作系统内存对齐的问题</span></span><br><span class="line">        bs_dladdr(CALL_INSTRUCTION_FROM_RETURN_ADDRESS(backtraceBuffer[i]), &amp;symbolsBuffer[i]);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">bool</span> <span class="title">bs_dladdr</span><span class="params">(<span class="keyword">const</span> <span class="keyword">uintptr_t</span> address, Dl_info* <span class="keyword">const</span> info)</span> </span>&#123;</span><br><span class="line">    info-&gt;dli_fname = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_fbase = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_sname = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_saddr = <span class="literal">NULL</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 寻找函数所在的镜像文件</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uint32_t</span> idx = bs_imageIndexContainingAddress(address);</span><br><span class="line">    <span class="keyword">if</span>(idx == UINT_MAX) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 拿到模块偏移值</span></span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">mach_header</span>* <span class="title">header</span> = _<span class="title">dyld_get_image_header</span>(<span class="title">idx</span>);</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uintptr_t</span> imageVMAddrSlide = (<span class="keyword">uintptr_t</span>)_dyld_get_image_vmaddr_slide(idx);</span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uintptr_t</span> addressWithSlide = address - imageVMAddrSlide;</span><br><span class="line">    <span class="comment">// 拿到link_segment段的开始地址</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">uintptr_t</span> segmentBase = bs_segmentBaseOfImageIndex(idx) + imageVMAddrSlide;</span><br><span class="line">    <span class="keyword">if</span>(segmentBase == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 获取镜像的路径名</span></span><br><span class="line">    info-&gt;dli_fname = _dyld_get_image_name(idx);</span><br><span class="line">    <span class="comment">// 镜像的header地址</span></span><br><span class="line">    info-&gt;dli_fbase = (<span class="keyword">void</span>*)header;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Find symbol tables and get whichever symbol is closest to the address.</span></span><br><span class="line">    <span class="keyword">const</span> BS_NLIST* bestMatch = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">uintptr_t</span> bestDistance = ULONG_MAX;</span><br><span class="line">    <span class="keyword">uintptr_t</span> cmdPtr = bs_firstCmdAfterHeader(header);</span><br><span class="line">    <span class="keyword">if</span>(cmdPtr == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">uint32_t</span> iCmd = <span class="number">0</span>; iCmd &lt; header-&gt;ncmds; iCmd++) &#123;</span><br><span class="line">        <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">load_command</span>* <span class="title">loadCmd</span> = (<span class="title">struct</span> <span class="title">load_command</span>*)<span class="title">cmdPtr</span>;</span></span><br><span class="line">        <span class="comment">// 找到symtab cmd段</span></span><br><span class="line">        <span class="keyword">if</span>(loadCmd-&gt;cmd == LC_SYMTAB) &#123;</span><br><span class="line">            <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">symtab_command</span>* <span class="title">symtabCmd</span> = (<span class="title">struct</span> <span class="title">symtab_command</span>*)<span class="title">cmdPtr</span>;</span></span><br><span class="line">            <span class="comment">// 拿到symbol和string2张表，symboltable本质是一个nlist数组</span></span><br><span class="line">            <span class="keyword">const</span> BS_NLIST* symbolTable = (BS_NLIST*)(segmentBase + symtabCmd-&gt;symoff);</span><br><span class="line">            <span class="keyword">const</span> <span class="keyword">uintptr_t</span> stringTable = segmentBase + symtabCmd-&gt;stroff;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">for</span>(<span class="keyword">uint32_t</span> iSym = <span class="number">0</span>; iSym &lt; symtabCmd-&gt;nsyms; iSym++) &#123;</span><br><span class="line">                <span class="comment">// 函数的入口地址</span></span><br><span class="line">                <span class="keyword">if</span>(symbolTable[iSym].n_value != <span class="number">0</span>) &#123;</span><br><span class="line">                    <span class="comment">// 符号在内存中的地址</span></span><br><span class="line">                    <span class="keyword">uintptr_t</span> symbolBase = symbolTable[iSym].n_value;</span><br><span class="line">                    <span class="comment">// 用返回值地址-符号基址</span></span><br><span class="line">                    <span class="keyword">uintptr_t</span> currentDistance = addressWithSlide - symbolBase;</span><br><span class="line">                    <span class="comment">// 找到符号表中地址距离返回地址最近的一条</span></span><br><span class="line">                    <span class="keyword">if</span>((addressWithSlide &gt;= symbolBase) &amp;&amp;</span><br><span class="line">                       (currentDistance &lt;= bestDistance)) &#123;</span><br><span class="line">                        bestMatch = symbolTable + iSym;</span><br><span class="line">                        bestDistance = currentDistance;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span>(bestMatch != <span class="literal">NULL</span>) &#123;</span><br><span class="line">                <span class="comment">// get name from stringTabel With dysm offset</span></span><br><span class="line">                info-&gt;dli_saddr = (<span class="keyword">void</span>*)(bestMatch-&gt;n_value + imageVMAddrSlide);</span><br><span class="line">                info-&gt;dli_sname = (<span class="keyword">char</span>*)((<span class="keyword">intptr_t</span>)stringTable + (<span class="keyword">intptr_t</span>)bestMatch-&gt;n_un.n_strx);</span><br><span class="line">                <span class="keyword">if</span>(*info-&gt;dli_sname == <span class="string">'_'</span>) &#123;</span><br><span class="line">                    info-&gt;dli_sname++;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// This happens if all symbols have been stripped.</span></span><br><span class="line">                <span class="keyword">if</span>(info-&gt;dli_saddr == info-&gt;dli_fbase &amp;&amp; bestMatch-&gt;n_type == <span class="number">3</span>) &#123;</span><br><span class="line">                    info-&gt;dli_sname = <span class="literal">NULL</span>;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        cmdPtr += loadCmd-&gt;cmdsize;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>在模拟器上实验，最后的结果来说是完全符合预期的，除了有部分系统符号不能打出来。在真机上是什么表现呢？很遗憾，在真机上，很多私有API的符号都被去掉了，只能显示<code>&lt;redacted&gt;</code>，但是部分公开的API和自己的符号均能被打印。所以还是能帮助我们对问题的分析。其实符号化这部分过程其实就是对macho的一个处理，和我们fishhook中很相似。具体可以参考<a href="/源码解读/fishhook原理">fishhook原理/</a></p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>iOS卡顿监控遇到的一些难题</title>
+    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
+<h3 id="一些思考"><a href="#一些思考" class="headerlink" title="一些思考"></a>一些思考</h3><p>其实我们希望我们的卡顿监控是这样的。</p>
+<blockquote>
+<p>1.可以看到卡顿的调用栈(基本) </p>
+<p>2.可以能看到一些页面的追踪，例如进入了xx页面，退到了后面，进入了前台…等等消息</p>
+<p>3.最好能带上一些自定义的信息。例如用户信息等</p>
+</blockquote>
+<p>其实这3点bugly的crash监控是有做到的，错误的跟踪也是有做到的。但是唯独只有卡顿监控只有单一的调用栈。找遍了所有的自定义interface。并没有提供类似的补充功能。(btw，我觉得这应该在实现上没有什么太大的麻烦)可能是大多数应用对卡顿的数据并不敏感。而大厂都有自己的apm平台。所以我们只能根据我们自己的需求做一些其他方向的思考。</p>
+<h3 id="进一步的调查"><a href="#进一步的调查" class="headerlink" title="进一步的调查"></a>进一步的调查</h3><p>进过上一步的思考，我们定位了自己的需求。但是对于我个人而言，还是希望能用一些现成的东西，在时间成本上比较划算（主要是自己懒）。所以最开始的想法是想换一下别家的sdk。所以有了下面的调查</p>
+<blockquote>
+<p>1.网易云捕快: 好像有类似的功能，但是不提供试用。公司应该也不会批准在这方面产品额外的费用。所以pass</p>
+<p>2.阿里的岳鹰: 新推出的产品，试过之后发现目前没有提供卡顿的监控，暂时不提供对外的自定义日志功能</p>
+<p>3.firebase: 不得不说这真的是做得很好的一个产品。各方面都很全面,展示得也非常清晰。可惜的是，也没有类似的卡顿功能</p>
+</blockquote>
+<p>在经历了这些之后，我们只能另辟蹊径。但是目前我们的时间和人力并不允许我们去做一个完善的apm(虽然我觉得这是很早就应该做的东西)。所以我们只能想其他方法。尽量低成本以及完善的办法</p>
+<h3 id="另辟蹊径"><a href="#另辟蹊径" class="headerlink" title="另辟蹊径"></a>另辟蹊径</h3><p>其实无论是以后自己做apm还是目前要想其他办法。卡顿的监控肯定是需要自己来实现了。只是上报到自己的apm后台还是第三方的后台的区别罢了。所以第一步就先实现自己的卡顿监控</p>
+<p>关于iOS的卡顿监控这一点网络上已经讨论烂了，并不是什么复杂的技术。但是我们的管理层还是要看bugly的数据，所以我们就按bugly的实现方式来仿写一遍好了。在bugly的文档上，我们有看到这一段</p>
+<blockquote>
+<h4 id="检查卡顿的依据和上报时机是什么"><a href="#检查卡顿的依据和上报时机是什么" class="headerlink" title="检查卡顿的依据和上报时机是什么?"></a>检查卡顿的依据和上报时机是什么?</h4><blockquote>
+<p>iOS 卡顿检查的依据是监控主线程 Runloop 的执行，观察执行耗时是否超过预定阀值(默认阀值为3000ms) 在监控到卡顿时会立即记录线程堆栈到本地，在App从后台切换到前台时，执行上报。</p>
+</blockquote>
+</blockquote>
+<p>所以我们就直接按这个仿写一个。用信号量来监控，间隔3s RunLoop无响应就代表产生的一次卡顿。在后续的测试中发现bugly的确是这样做的，尽管静态库看不到源码，但是我们还是能和bugly一样监测到同样的卡顿，并且拿到同样的函数调用栈，接下来就是后续的上报的问题了。也就是一开始我们需要解决的问题。</p>
+<h3 id="上报方案之一FireBase"><a href="#上报方案之一FireBase" class="headerlink" title="上报方案之一FireBase"></a>上报方案之一<a href="https://firebase.google.com" target="_blank" rel="noopener">FireBase</a></h3><p>尽管在之前我们调研firebase的时候有提到过。firebase并不支持卡顿的一些监控。但是他支持自定义的异常上报的sdk。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Records an Exception Model described by an FIRExceptionModel object. The events are</span></span><br><span class="line"><span class="comment"> * grouped and displayed similarly to crashes. Keep in mind that this method can be expensive.</span></span><br><span class="line"><span class="comment"> * The total number of FIRExceptionModels that can be recorded during your app's life-cycle is</span></span><br><span class="line"><span class="comment"> * limited by a fixed-size circular buffer. If the buffer is overrun, the oldest data is dropped.</span></span><br><span class="line"><span class="comment"> * Exception Models are relayed to Crashlytics on a subsequent launch of your application.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param exceptionModel Instance of the FIRExceptionModel to be recorded</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (<span class="keyword">void</span>)recordExceptionModel:(FIRExceptionModel *)exceptionModel</span><br><span class="line">    NS_SWIFT_NAME(record(exceptionModel:));</span><br></pre></td></tr></table></figure>
+
+<p>其中这个exceptionModel的一些接口方法如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Creates an Exception Model model with the given required fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param name - typically the type of the Exception class</span></span><br><span class="line"><span class="comment"> * @param reason - the human-readable reason the issue occurred</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (instancetype)exceptionModelWithName:(NSString *)name</span><br><span class="line">                                reason:(NSString *)<span class="function">reason <span class="title">NS_SWIFT_UNAVAILABLE</span><span class="params">(<span class="string">""</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A list of Stack Frames that make up the stack trace. The order of the stack trace is top-first,</span></span><br><span class="line"><span class="comment"> * so typically the "main" function is the last element in this list.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">@property(nonatomic, copy) NSArray&lt;FIRStackFrame *&gt; *stackTrace;</span><br></pre></td></tr></table></figure>
+
+<p>提供了一个异常，以及原因。并且需要传入对应的调用栈帧。可以进一步进去看下这个<code>FIRStackFrame</code>这个类,发现他提供了一些并不简便的方法，需要上传的时候自己找到发生问题的文件。以及行数。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initializes a symbolicated Stack Frame with the given required fields. Symbolicated</span></span><br><span class="line"><span class="comment"> * Stack Frames will appear in the Crashlytics dashboard as reported in these fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param symbol - The function or method name</span></span><br><span class="line"><span class="comment"> * @param file - the file where the exception occurred</span></span><br><span class="line"><span class="comment"> * @param line - the line number</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (instancetype)initWithSymbol:(NSString *)symbol file:(NSString *)file <span class="built_in">line</span>:(NSInteger)<span class="built_in">line</span>;</span><br></pre></td></tr></table></figure>
+
+<p>例如下面就是文档推荐的用法</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">FIRExceptionModel *model =</span><br><span class="line">    [FIRExceptionModel exceptionModelWithName:@<span class="string">"FooException"</span> reason:@<span class="string">"There was a foo."</span>];</span><br><span class="line">model.stackTrace = @[</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"makeError"</span> fileName:@<span class="string">"handler.js"</span> lineNumber:<span class="number">495</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"then"</span> fileName:@<span class="string">"routes.js"</span> lineNumber:<span class="number">102</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"main"</span> fileName:@<span class="string">"app.js"</span> lineNumber:<span class="number">12</span>],</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
+
+<p>很明显在我们发生卡顿的时候我们自己再去检索到对应的文件以及行数是不可行的。所以我们需要找找其他的方法,这里就不卖关子了，在读interface的时候，发现了一个这样的文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This class is used in conjunction with recordExceptionModel to record information about</span><br><span class="line"> * non-ObjC&#x2F;C++ exceptions. All information included here will be displayed in the Crashlytics UI,</span><br><span class="line"> * and can influence crash grouping. Be particularly careful with the use of the address property.</span><br><span class="line"> *If set, Crashlytics will attempt symbolication and could overwrite other properities in the</span><br><span class="line"> *process.</span><br><span class="line"> **&#x2F;</span><br><span class="line">@interface FIRStackFrame (Private)</span><br><span class="line"></span><br><span class="line">+ (instancetype)stackFrame;</span><br><span class="line">+ (instancetype)stackFrameWithAddress:(NSUInteger)address;</span><br></pre></td></tr></table></figure>
+
+<p>很明显，这个文件是私有的，而且注释中告诉我们要用address这个api时一定要小心。ok,我们当然知道要小心，这个太适合我们了。因为我们在做卡顿监控的时候我们已经可以拿到函数调用栈的栈帧。直接调用就可以了。</p>
+<p>最后的代码可能就是这个样子</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">NSMutableArray *callFrames = [NSMutableArray arrayWithCapacity:backtraceLength];</span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> k = <span class="number">0</span>; k &lt; backtraceLength; k++)&#123;</span><br><span class="line">    NSUInteger addr = backtraceBuffer[k];</span><br><span class="line">    FIRStackFrame *sf = [FIRStackFrame stackFrameWithAddress:addr];</span><br><span class="line">    [callFrames addObject:sf];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">FIRExceptionModel *exceptionModel = [FIRExceptionModel exceptionModelWithName:@<span class="string">"jank exception"</span> reason:@<span class="string">"main thread blocked"</span>];</span><br><span class="line">exceptionModel.stackTrace = callFrames;</span><br><span class="line">[[FIRCrashlytics crashlytics] recordExceptionModel:exceptionModel];</span><br></pre></td></tr></table></figure>
+
+<p>然后再配合<code>Firebase</code>自带的log功能，在一些生命周期(例如前后台切换，页面的加载)的地方做好log，这样我们就可以在监控到卡顿的同时可以了解到用户的一些使用踪迹了，方便我们debug。另外他还提供了<code>Add custom keys</code>的功能，这样我们也可以附带一些用户属性上去，比如用户id。等等之类的，都有助于我们定位问题。</p>
+<p>其实到这里这个方案就差不多结束了，在这点上<code>Firebase</code>做得真的很好，他会做好符号化并且归类。可能比较麻烦的是在集成以及处理符号表上传的时候。btw,在调查阿里的岳鹰sdk的时候，他们是说他们也有这个对应的sdk的，但是暂时不提供对外服务。真是可惜了</p>
+<h3 id="上报方案之二-Bugly"><a href="#上报方案之二-Bugly" class="headerlink" title="上报方案之二 Bugly"></a>上报方案之二 Bugly</h3><p>相对于firebase来说，bugly可能就没那么友好，但是并不是每个团队都会因为卡顿这种事情去换一个sdk的。所以也必须讨论下这种方法的可行性。</p>
+<p>聚焦于我们的目标，我们只需要卡顿监控中带上用户的轨迹追踪信息，以及上报一些自定义的hash map。前言中我们有写到过，其实他sdk中crash以及异常的上报都是自己附带这些数据上去的，非常简单。</p>
+<p>而且他也提供了一个自定义异常的接口方法。如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> *    @brief 上报自定义错误</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *    @param category    类型(Cocoa=3,CSharp=4,JS=5,Lua=6)</span></span><br><span class="line"><span class="comment"> *    @param aName       名称</span></span><br><span class="line"><span class="comment"> *    @param aReason     错误原因</span></span><br><span class="line"><span class="comment"> *    @param aStackArray 堆栈</span></span><br><span class="line"><span class="comment"> *    @param info        附加数据</span></span><br><span class="line"><span class="comment"> *    @param terminate   上报后是否退出应用进程</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (<span class="keyword">void</span>)reportExceptionWithCategory:(NSUInteger)category</span><br><span class="line">                               name:(NSString *)aName</span><br><span class="line">                             reason:(NSString *)aReason</span><br><span class="line">                          callStack:(NSArray *)aStackArray</span><br><span class="line">                          extraInfo:(NSDictionary *)info</span><br><span class="line">                       terminateApp:(BOOL)<span class="built_in">terminate</span>;</span><br></pre></td></tr></table></figure>
+
+<p>和<code>Firebase</code>很像，传名称，原因,以及调用栈，但是有所不同的是，StackArray内的元素必须是String类型。也就是说，你必须自己做好符号化上传。并且，查遍了sdk，并没有通过地址上传的方法。</p>
+<p>所以我们只能硬着头皮上传自己本地符号化好的数据上去。其实网上提供的监控方法后续也提供了符号化的代码。其实大概的原理和我上一篇文章类似，都是几个表之间的匹配和查找。详情可以查看<a href="https://www.qingheblog.online/源码解读/fishhook原理/" target="_blank" rel="noopener">fishhook原理</a>。</p>
+<p>但是需要注意一点的是，我们的release包是做了去符号表处理的。按理说我们应该是上传的函数地址，然后统一由后台用符号化文件去做处理，然后做展示的。但是目前条件有限，我们只能用这种本地符号化的方案来做.由于脱了符号表,所以本地符号化是非常片面的。能符号化的只是很小的系统底层函数的一部分。</p>
+<p>但是，我们也可以利用这些仅有的信息来做很多的事情，在上传了之后，我们可以根据库的名字，和一些符号表，来和bugly自带的卡顿监控做匹配，配合起来看。巧妇难为无米之炊，也只能这样了。最终还是要转到自己的apm平台的</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实，说到底，这两种方案都是为了在卡顿监控的基础上追加一些信息，方便我们定位问题。具体的取舍还是要看团队，其实到最后。我们还是需要自己的一个apm平台，不过，这个后续再说吧。</p>
+]]></content>
+      <categories>
+        <category>项目优化</category>
+      </categories>
+  </entry>
 </search>

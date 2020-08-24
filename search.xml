@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>RSA原理</title>
     <url>/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/</url>
     <content><![CDATA[<h3 id="历史"><a href="#历史" class="headerlink" title="历史"></a>历史</h3><p><em>1976年之前用的用的都是对称加密</em></p>
@@ -314,6 +355,68 @@
       </categories>
   </entry>
   <entry>
+    <title>iOS卡顿监控遇到的一些难题</title>
+    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
+<h3 id="一些思考"><a href="#一些思考" class="headerlink" title="一些思考"></a>一些思考</h3><p>其实我们希望我们的卡顿监控是这样的。</p>
+<blockquote>
+<p>1.可以看到卡顿的调用栈(基本) </p>
+<p>2.可以能看到一些页面的追踪，例如进入了xx页面，退到了后面，进入了前台…等等消息</p>
+<p>3.最好能带上一些自定义的信息。例如用户信息等</p>
+</blockquote>
+<p>其实这3点bugly的crash监控是有做到的，错误的跟踪也是有做到的。但是唯独只有卡顿监控只有单一的调用栈。找遍了所有的自定义interface。并没有提供类似的补充功能。(btw，我觉得这应该在实现上没有什么太大的麻烦)可能是大多数应用对卡顿的数据并不敏感。而大厂都有自己的apm平台。所以我们只能根据我们自己的需求做一些其他方向的思考。</p>
+<h3 id="进一步的调查"><a href="#进一步的调查" class="headerlink" title="进一步的调查"></a>进一步的调查</h3><p>进过上一步的思考，我们定位了自己的需求。但是对于我个人而言，还是希望能用一些现成的东西，在时间成本上比较划算（主要是自己懒）。所以最开始的想法是想换一下别家的sdk。所以有了下面的调查</p>
+<blockquote>
+<p>1.网易云捕快: 好像有类似的功能，但是不提供试用。公司应该也不会批准在这方面产品额外的费用。所以pass</p>
+<p>2.阿里的岳鹰: 新推出的产品，试过之后发现目前没有提供卡顿的监控，暂时不提供对外的自定义日志功能</p>
+<p>3.firebase: 不得不说这真的是做得很好的一个产品。各方面都很全面,展示得也非常清晰。可惜的是，也没有类似的卡顿功能</p>
+</blockquote>
+<p>在经历了这些之后，我们只能另辟蹊径。但是目前我们的时间和人力并不允许我们去做一个完善的apm(虽然我觉得这是很早就应该做的东西)。所以我们只能想其他方法。尽量低成本以及完善的办法</p>
+<h3 id="另辟蹊径"><a href="#另辟蹊径" class="headerlink" title="另辟蹊径"></a>另辟蹊径</h3><p>其实无论是以后自己做apm还是目前要想其他办法。卡顿的监控肯定是需要自己来实现了。只是上报到自己的apm后台还是第三方的后台的区别罢了。所以第一步就先实现自己的卡顿监控</p>
+<p>关于iOS的卡顿监控这一点网络上已经讨论烂了，并不是什么复杂的技术。但是我们的管理层还是要看bugly的数据，所以我们就按bugly的实现方式来仿写一遍好了。在bugly的文档上，我们有看到这一段</p>
+<blockquote>
+<h4 id="检查卡顿的依据和上报时机是什么"><a href="#检查卡顿的依据和上报时机是什么" class="headerlink" title="检查卡顿的依据和上报时机是什么?"></a>检查卡顿的依据和上报时机是什么?</h4><blockquote>
+<p>iOS 卡顿检查的依据是监控主线程 Runloop 的执行，观察执行耗时是否超过预定阀值(默认阀值为3000ms) 在监控到卡顿时会立即记录线程堆栈到本地，在App从后台切换到前台时，执行上报。</p>
+</blockquote>
+</blockquote>
+<p>所以我们就直接按这个仿写一个。用信号量来监控，间隔3s RunLoop无响应就代表产生的一次卡顿。在后续的测试中发现bugly的确是这样做的，尽管静态库看不到源码，但是我们还是能和bugly一样监测到同样的卡顿，并且拿到同样的函数调用栈，接下来就是后续的上报的问题了。也就是一开始我们需要解决的问题。</p>
+<h3 id="上报方案之一FireBase"><a href="#上报方案之一FireBase" class="headerlink" title="上报方案之一FireBase"></a>上报方案之一<a href="https://firebase.google.com" target="_blank" rel="noopener">FireBase</a></h3><p>尽管在之前我们调研firebase的时候有提到过。firebase并不支持卡顿的一些监控。但是他支持自定义的异常上报的sdk。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Records an Exception Model described by an FIRExceptionModel object. The events are</span></span><br><span class="line"><span class="comment"> * grouped and displayed similarly to crashes. Keep in mind that this method can be expensive.</span></span><br><span class="line"><span class="comment"> * The total number of FIRExceptionModels that can be recorded during your app's life-cycle is</span></span><br><span class="line"><span class="comment"> * limited by a fixed-size circular buffer. If the buffer is overrun, the oldest data is dropped.</span></span><br><span class="line"><span class="comment"> * Exception Models are relayed to Crashlytics on a subsequent launch of your application.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param exceptionModel Instance of the FIRExceptionModel to be recorded</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (<span class="keyword">void</span>)recordExceptionModel:(FIRExceptionModel *)exceptionModel</span><br><span class="line">    NS_SWIFT_NAME(record(exceptionModel:));</span><br></pre></td></tr></table></figure>
+
+<p>其中这个exceptionModel的一些接口方法如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Creates an Exception Model model with the given required fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param name - typically the type of the Exception class</span></span><br><span class="line"><span class="comment"> * @param reason - the human-readable reason the issue occurred</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (instancetype)exceptionModelWithName:(NSString *)name</span><br><span class="line">                                reason:(NSString *)<span class="function">reason <span class="title">NS_SWIFT_UNAVAILABLE</span><span class="params">(<span class="string">""</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A list of Stack Frames that make up the stack trace. The order of the stack trace is top-first,</span></span><br><span class="line"><span class="comment"> * so typically the "main" function is the last element in this list.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">@property(nonatomic, copy) NSArray&lt;FIRStackFrame *&gt; *stackTrace;</span><br></pre></td></tr></table></figure>
+
+<p>提供了一个异常，以及原因。并且需要传入对应的调用栈帧。可以进一步进去看下这个<code>FIRStackFrame</code>这个类,发现他提供了一些并不简便的方法，需要上传的时候自己找到发生问题的文件。以及行数。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initializes a symbolicated Stack Frame with the given required fields. Symbolicated</span></span><br><span class="line"><span class="comment"> * Stack Frames will appear in the Crashlytics dashboard as reported in these fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param symbol - The function or method name</span></span><br><span class="line"><span class="comment"> * @param file - the file where the exception occurred</span></span><br><span class="line"><span class="comment"> * @param line - the line number</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (instancetype)initWithSymbol:(NSString *)symbol file:(NSString *)file <span class="built_in">line</span>:(NSInteger)<span class="built_in">line</span>;</span><br></pre></td></tr></table></figure>
+
+<p>例如下面就是文档推荐的用法</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">FIRExceptionModel *model =</span><br><span class="line">    [FIRExceptionModel exceptionModelWithName:@<span class="string">"FooException"</span> reason:@<span class="string">"There was a foo."</span>];</span><br><span class="line">model.stackTrace = @[</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"makeError"</span> fileName:@<span class="string">"handler.js"</span> lineNumber:<span class="number">495</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"then"</span> fileName:@<span class="string">"routes.js"</span> lineNumber:<span class="number">102</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"main"</span> fileName:@<span class="string">"app.js"</span> lineNumber:<span class="number">12</span>],</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
+
+<p>很明显在我们发生卡顿的时候我们自己再去检索到对应的文件以及行数是不可行的。所以我们需要找找其他的方法,这里就不卖关子了，在读interface的时候，发现了一个这样的文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This class is used in conjunction with recordExceptionModel to record information about</span><br><span class="line"> * non-ObjC&#x2F;C++ exceptions. All information included here will be displayed in the Crashlytics UI,</span><br><span class="line"> * and can influence crash grouping. Be particularly careful with the use of the address property.</span><br><span class="line"> *If set, Crashlytics will attempt symbolication and could overwrite other properities in the</span><br><span class="line"> *process.</span><br><span class="line"> **&#x2F;</span><br><span class="line">@interface FIRStackFrame (Private)</span><br><span class="line"></span><br><span class="line">+ (instancetype)stackFrame;</span><br><span class="line">+ (instancetype)stackFrameWithAddress:(NSUInteger)address;</span><br></pre></td></tr></table></figure>
+
+<p>很明显，这个文件是私有的，而且注释中告诉我们要用address这个api时一定要小心。ok,我们当然知道要小心，这个太适合我们了。因为我们在做卡顿监控的时候我们已经可以拿到函数调用栈的栈帧。直接调用就可以了。</p>
+<p>最后的代码可能就是这个样子</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">NSMutableArray *callFrames = [NSMutableArray arrayWithCapacity:backtraceLength];</span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> k = <span class="number">0</span>; k &lt; backtraceLength; k++)&#123;</span><br><span class="line">    NSUInteger addr = backtraceBuffer[k];</span><br><span class="line">    FIRStackFrame *sf = [FIRStackFrame stackFrameWithAddress:addr];</span><br><span class="line">    [callFrames addObject:sf];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">FIRExceptionModel *exceptionModel = [FIRExceptionModel exceptionModelWithName:@<span class="string">"jank exception"</span> reason:@<span class="string">"main thread blocked"</span>];</span><br><span class="line">exceptionModel.stackTrace = callFrames;</span><br><span class="line">[[FIRCrashlytics crashlytics] recordExceptionModel:exceptionModel];</span><br></pre></td></tr></table></figure>
+
+<p>然后再配合<code>Firebase</code>自带的log功能，在一些生命周期(例如前后台切换，页面的加载)的地方做好log，这样我们就可以在监控到卡顿的同时可以了解到用户的一些使用踪迹了，方便我们debug。另外他还提供了<code>Add custom keys</code>的功能，这样我们也可以附带一些用户属性上去，比如用户id。等等之类的，都有助于我们定位问题。</p>
+<p>其实到这里这个方案就差不多结束了，在这点上<code>Firebase</code>做得真的很好，他会做好符号化并且归类。可能比较麻烦的是在集成以及处理符号表上传的时候。btw,在调查阿里的岳鹰sdk的时候，他们是说他们也有这个对应的sdk的，但是暂时不提供对外服务。真是可惜了</p>
+<h3 id="上报方案之二-Bugly"><a href="#上报方案之二-Bugly" class="headerlink" title="上报方案之二 Bugly"></a>上报方案之二 Bugly</h3><p>相对于firebase来说，bugly可能就没那么友好，但是并不是每个团队都会因为卡顿这种事情去换一个sdk的。所以也必须讨论下这种方法的可行性。</p>
+<p>聚焦于我们的目标，我们只需要卡顿监控中带上用户的轨迹追踪信息，以及上报一些自定义的hash map。前言中我们有写到过，其实他sdk中crash以及异常的上报都是自己附带这些数据上去的，非常简单。</p>
+<p>而且他也提供了一个自定义异常的接口方法。如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> *    @brief 上报自定义错误</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *    @param category    类型(Cocoa=3,CSharp=4,JS=5,Lua=6)</span></span><br><span class="line"><span class="comment"> *    @param aName       名称</span></span><br><span class="line"><span class="comment"> *    @param aReason     错误原因</span></span><br><span class="line"><span class="comment"> *    @param aStackArray 堆栈</span></span><br><span class="line"><span class="comment"> *    @param info        附加数据</span></span><br><span class="line"><span class="comment"> *    @param terminate   上报后是否退出应用进程</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (<span class="keyword">void</span>)reportExceptionWithCategory:(NSUInteger)category</span><br><span class="line">                               name:(NSString *)aName</span><br><span class="line">                             reason:(NSString *)aReason</span><br><span class="line">                          callStack:(NSArray *)aStackArray</span><br><span class="line">                          extraInfo:(NSDictionary *)info</span><br><span class="line">                       terminateApp:(BOOL)<span class="built_in">terminate</span>;</span><br></pre></td></tr></table></figure>
+
+<p>和<code>Firebase</code>很像，传名称，原因,以及调用栈，但是有所不同的是，StackArray内的元素必须是String类型。也就是说，你必须自己做好符号化上传。并且，查遍了sdk，并没有通过地址上传的方法。</p>
+<p>所以我们只能硬着头皮上传自己本地符号化好的数据上去。其实网上提供的监控方法后续也提供了符号化的代码。其实大概的原理和我上一篇文章类似，都是几个表之间的匹配和查找。详情可以查看<a href="https://www.qingheblog.online/源码解读/fishhook原理/" target="_blank" rel="noopener">fishhook原理</a>。</p>
+<p>但是需要注意一点的是，我们的release包是做了去符号表处理的。按理说我们应该是上传的函数地址，然后统一由后台用符号化文件去做处理，然后做展示的。但是目前条件有限，我们只能用这种本地符号化的方案来做.由于脱了符号表,所以本地符号化是非常片面的。能符号化的只是很小的系统底层函数的一部分。</p>
+<p>但是，我们也可以利用这些仅有的信息来做很多的事情，在上传了之后，我们可以根据库的名字，和一些符号表，来和bugly自带的卡顿监控做匹配，配合起来看。巧妇难为无米之炊，也只能这样了。最终还是要转到自己的apm平台的</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实，说到底，这两种方案都是为了在卡顿监控的基础上追加一些信息，方便我们定位问题。具体的取舍还是要看团队，其实到最后。我们还是需要自己的一个apm平台，不过，这个后续再说吧。</p>
+]]></content>
+      <categories>
+        <category>工作总结</category>
+      </categories>
+  </entry>
+  <entry>
     <title>浅谈函数调用栈</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>目前项目需要做一个检测卡顿的工具，但是在检测卡顿完我们肯定是希望能找出具体的函数调用栈方便查找问题以及业务同学更改。所以我们需要提前准备一个能够实时查看函数调用栈的工具，其实这些已经有比较成熟的方案了，但是我们还是需要知道这些原理。</p>
@@ -391,109 +494,6 @@
 ]]></content>
       <categories>
         <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>NSThead和内核线程的转换</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
-<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
-<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
-<blockquote>
-<ol>
-<li>pthread 是什么</li>
-<li>NSThread 如何封装 pthread</li>
-</ol>
-</blockquote>
-<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
-<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
-<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
-<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
-<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
-<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
-<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
-
-<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
-<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
-<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
-<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
-<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
-<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>iOS卡顿监控遇到的一些难题</title>
-    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
-<h3 id="一些思考"><a href="#一些思考" class="headerlink" title="一些思考"></a>一些思考</h3><p>其实我们希望我们的卡顿监控是这样的。</p>
-<blockquote>
-<p>1.可以看到卡顿的调用栈(基本) </p>
-<p>2.可以能看到一些页面的追踪，例如进入了xx页面，退到了后面，进入了前台…等等消息</p>
-<p>3.最好能带上一些自定义的信息。例如用户信息等</p>
-</blockquote>
-<p>其实这3点bugly的crash监控是有做到的，错误的跟踪也是有做到的。但是唯独只有卡顿监控只有单一的调用栈。找遍了所有的自定义interface。并没有提供类似的补充功能。(btw，我觉得这应该在实现上没有什么太大的麻烦)可能是大多数应用对卡顿的数据并不敏感。而大厂都有自己的apm平台。所以我们只能根据我们自己的需求做一些其他方向的思考。</p>
-<h3 id="进一步的调查"><a href="#进一步的调查" class="headerlink" title="进一步的调查"></a>进一步的调查</h3><p>进过上一步的思考，我们定位了自己的需求。但是对于我个人而言，还是希望能用一些现成的东西，在时间成本上比较划算（主要是自己懒）。所以最开始的想法是想换一下别家的sdk。所以有了下面的调查</p>
-<blockquote>
-<p>1.网易云捕快: 好像有类似的功能，但是不提供试用。公司应该也不会批准在这方面产品额外的费用。所以pass</p>
-<p>2.阿里的岳鹰: 新推出的产品，试过之后发现目前没有提供卡顿的监控，暂时不提供对外的自定义日志功能</p>
-<p>3.firebase: 不得不说这真的是做得很好的一个产品。各方面都很全面,展示得也非常清晰。可惜的是，也没有类似的卡顿功能</p>
-</blockquote>
-<p>在经历了这些之后，我们只能另辟蹊径。但是目前我们的时间和人力并不允许我们去做一个完善的apm(虽然我觉得这是很早就应该做的东西)。所以我们只能想其他方法。尽量低成本以及完善的办法</p>
-<h3 id="另辟蹊径"><a href="#另辟蹊径" class="headerlink" title="另辟蹊径"></a>另辟蹊径</h3><p>其实无论是以后自己做apm还是目前要想其他办法。卡顿的监控肯定是需要自己来实现了。只是上报到自己的apm后台还是第三方的后台的区别罢了。所以第一步就先实现自己的卡顿监控</p>
-<p>关于iOS的卡顿监控这一点网络上已经讨论烂了，并不是什么复杂的技术。但是我们的管理层还是要看bugly的数据，所以我们就按bugly的实现方式来仿写一遍好了。在bugly的文档上，我们有看到这一段</p>
-<blockquote>
-<h4 id="检查卡顿的依据和上报时机是什么"><a href="#检查卡顿的依据和上报时机是什么" class="headerlink" title="检查卡顿的依据和上报时机是什么?"></a>检查卡顿的依据和上报时机是什么?</h4><blockquote>
-<p>iOS 卡顿检查的依据是监控主线程 Runloop 的执行，观察执行耗时是否超过预定阀值(默认阀值为3000ms) 在监控到卡顿时会立即记录线程堆栈到本地，在App从后台切换到前台时，执行上报。</p>
-</blockquote>
-</blockquote>
-<p>所以我们就直接按这个仿写一个。用信号量来监控，间隔3s RunLoop无响应就代表产生的一次卡顿。在后续的测试中发现bugly的确是这样做的，尽管静态库看不到源码，但是我们还是能和bugly一样监测到同样的卡顿，并且拿到同样的函数调用栈，接下来就是后续的上报的问题了。也就是一开始我们需要解决的问题。</p>
-<h3 id="上报方案之一FireBase"><a href="#上报方案之一FireBase" class="headerlink" title="上报方案之一FireBase"></a>上报方案之一<a href="https://firebase.google.com" target="_blank" rel="noopener">FireBase</a></h3><p>尽管在之前我们调研firebase的时候有提到过。firebase并不支持卡顿的一些监控。但是他支持自定义的异常上报的sdk。</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Records an Exception Model described by an FIRExceptionModel object. The events are</span></span><br><span class="line"><span class="comment"> * grouped and displayed similarly to crashes. Keep in mind that this method can be expensive.</span></span><br><span class="line"><span class="comment"> * The total number of FIRExceptionModels that can be recorded during your app's life-cycle is</span></span><br><span class="line"><span class="comment"> * limited by a fixed-size circular buffer. If the buffer is overrun, the oldest data is dropped.</span></span><br><span class="line"><span class="comment"> * Exception Models are relayed to Crashlytics on a subsequent launch of your application.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param exceptionModel Instance of the FIRExceptionModel to be recorded</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (<span class="keyword">void</span>)recordExceptionModel:(FIRExceptionModel *)exceptionModel</span><br><span class="line">    NS_SWIFT_NAME(record(exceptionModel:));</span><br></pre></td></tr></table></figure>
-
-<p>其中这个exceptionModel的一些接口方法如下</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Creates an Exception Model model with the given required fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param name - typically the type of the Exception class</span></span><br><span class="line"><span class="comment"> * @param reason - the human-readable reason the issue occurred</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (instancetype)exceptionModelWithName:(NSString *)name</span><br><span class="line">                                reason:(NSString *)<span class="function">reason <span class="title">NS_SWIFT_UNAVAILABLE</span><span class="params">(<span class="string">""</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A list of Stack Frames that make up the stack trace. The order of the stack trace is top-first,</span></span><br><span class="line"><span class="comment"> * so typically the "main" function is the last element in this list.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">@property(nonatomic, copy) NSArray&lt;FIRStackFrame *&gt; *stackTrace;</span><br></pre></td></tr></table></figure>
-
-<p>提供了一个异常，以及原因。并且需要传入对应的调用栈帧。可以进一步进去看下这个<code>FIRStackFrame</code>这个类,发现他提供了一些并不简便的方法，需要上传的时候自己找到发生问题的文件。以及行数。</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initializes a symbolicated Stack Frame with the given required fields. Symbolicated</span></span><br><span class="line"><span class="comment"> * Stack Frames will appear in the Crashlytics dashboard as reported in these fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param symbol - The function or method name</span></span><br><span class="line"><span class="comment"> * @param file - the file where the exception occurred</span></span><br><span class="line"><span class="comment"> * @param line - the line number</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (instancetype)initWithSymbol:(NSString *)symbol file:(NSString *)file <span class="built_in">line</span>:(NSInteger)<span class="built_in">line</span>;</span><br></pre></td></tr></table></figure>
-
-<p>例如下面就是文档推荐的用法</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">FIRExceptionModel *model =</span><br><span class="line">    [FIRExceptionModel exceptionModelWithName:@<span class="string">"FooException"</span> reason:@<span class="string">"There was a foo."</span>];</span><br><span class="line">model.stackTrace = @[</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"makeError"</span> fileName:@<span class="string">"handler.js"</span> lineNumber:<span class="number">495</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"then"</span> fileName:@<span class="string">"routes.js"</span> lineNumber:<span class="number">102</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"main"</span> fileName:@<span class="string">"app.js"</span> lineNumber:<span class="number">12</span>],</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
-
-<p>很明显在我们发生卡顿的时候我们自己再去检索到对应的文件以及行数是不可行的。所以我们需要找找其他的方法,这里就不卖关子了，在读interface的时候，发现了一个这样的文件</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This class is used in conjunction with recordExceptionModel to record information about</span><br><span class="line"> * non-ObjC&#x2F;C++ exceptions. All information included here will be displayed in the Crashlytics UI,</span><br><span class="line"> * and can influence crash grouping. Be particularly careful with the use of the address property.</span><br><span class="line"> *If set, Crashlytics will attempt symbolication and could overwrite other properities in the</span><br><span class="line"> *process.</span><br><span class="line"> **&#x2F;</span><br><span class="line">@interface FIRStackFrame (Private)</span><br><span class="line"></span><br><span class="line">+ (instancetype)stackFrame;</span><br><span class="line">+ (instancetype)stackFrameWithAddress:(NSUInteger)address;</span><br></pre></td></tr></table></figure>
-
-<p>很明显，这个文件是私有的，而且注释中告诉我们要用address这个api时一定要小心。ok,我们当然知道要小心，这个太适合我们了。因为我们在做卡顿监控的时候我们已经可以拿到函数调用栈的栈帧。直接调用就可以了。</p>
-<p>最后的代码可能就是这个样子</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">NSMutableArray *callFrames = [NSMutableArray arrayWithCapacity:backtraceLength];</span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> k = <span class="number">0</span>; k &lt; backtraceLength; k++)&#123;</span><br><span class="line">    NSUInteger addr = backtraceBuffer[k];</span><br><span class="line">    FIRStackFrame *sf = [FIRStackFrame stackFrameWithAddress:addr];</span><br><span class="line">    [callFrames addObject:sf];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">FIRExceptionModel *exceptionModel = [FIRExceptionModel exceptionModelWithName:@<span class="string">"jank exception"</span> reason:@<span class="string">"main thread blocked"</span>];</span><br><span class="line">exceptionModel.stackTrace = callFrames;</span><br><span class="line">[[FIRCrashlytics crashlytics] recordExceptionModel:exceptionModel];</span><br></pre></td></tr></table></figure>
-
-<p>然后再配合<code>Firebase</code>自带的log功能，在一些生命周期(例如前后台切换，页面的加载)的地方做好log，这样我们就可以在监控到卡顿的同时可以了解到用户的一些使用踪迹了，方便我们debug。另外他还提供了<code>Add custom keys</code>的功能，这样我们也可以附带一些用户属性上去，比如用户id。等等之类的，都有助于我们定位问题。</p>
-<p>其实到这里这个方案就差不多结束了，在这点上<code>Firebase</code>做得真的很好，他会做好符号化并且归类。可能比较麻烦的是在集成以及处理符号表上传的时候。btw,在调查阿里的岳鹰sdk的时候，他们是说他们也有这个对应的sdk的，但是暂时不提供对外服务。真是可惜了</p>
-<h3 id="上报方案之二-Bugly"><a href="#上报方案之二-Bugly" class="headerlink" title="上报方案之二 Bugly"></a>上报方案之二 Bugly</h3><p>相对于firebase来说，bugly可能就没那么友好，但是并不是每个团队都会因为卡顿这种事情去换一个sdk的。所以也必须讨论下这种方法的可行性。</p>
-<p>聚焦于我们的目标，我们只需要卡顿监控中带上用户的轨迹追踪信息，以及上报一些自定义的hash map。前言中我们有写到过，其实他sdk中crash以及异常的上报都是自己附带这些数据上去的，非常简单。</p>
-<p>而且他也提供了一个自定义异常的接口方法。如下</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> *    @brief 上报自定义错误</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *    @param category    类型(Cocoa=3,CSharp=4,JS=5,Lua=6)</span></span><br><span class="line"><span class="comment"> *    @param aName       名称</span></span><br><span class="line"><span class="comment"> *    @param aReason     错误原因</span></span><br><span class="line"><span class="comment"> *    @param aStackArray 堆栈</span></span><br><span class="line"><span class="comment"> *    @param info        附加数据</span></span><br><span class="line"><span class="comment"> *    @param terminate   上报后是否退出应用进程</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (<span class="keyword">void</span>)reportExceptionWithCategory:(NSUInteger)category</span><br><span class="line">                               name:(NSString *)aName</span><br><span class="line">                             reason:(NSString *)aReason</span><br><span class="line">                          callStack:(NSArray *)aStackArray</span><br><span class="line">                          extraInfo:(NSDictionary *)info</span><br><span class="line">                       terminateApp:(BOOL)<span class="built_in">terminate</span>;</span><br></pre></td></tr></table></figure>
-
-<p>和<code>Firebase</code>很像，传名称，原因,以及调用栈，但是有所不同的是，StackArray内的元素必须是String类型。也就是说，你必须自己做好符号化上传。并且，查遍了sdk，并没有通过地址上传的方法。</p>
-<p>所以我们只能硬着头皮上传自己本地符号化好的数据上去。其实网上提供的监控方法后续也提供了符号化的代码。其实大概的原理和我上一篇文章类似，都是几个表之间的匹配和查找。详情可以查看<a href="https://www.qingheblog.online/源码解读/fishhook原理/" target="_blank" rel="noopener">fishhook原理</a>。</p>
-<p>但是需要注意一点的是，我们的release包是做了去符号表处理的。按理说我们应该是上传的函数地址，然后统一由后台用符号化文件去做处理，然后做展示的。但是目前条件有限，我们只能用这种本地符号化的方案来做.由于脱了符号表,所以本地符号化是非常片面的。能符号化的只是很小的系统底层函数的一部分。</p>
-<p>但是，我们也可以利用这些仅有的信息来做很多的事情，在上传了之后，我们可以根据库的名字，和一些符号表，来和bugly自带的卡顿监控做匹配，配合起来看。巧妇难为无米之炊，也只能这样了。最终还是要转到自己的apm平台的</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实，说到底，这两种方案都是为了在卡顿监控的基础上追加一些信息，方便我们定位问题。具体的取舍还是要看团队，其实到最后。我们还是需要自己的一个apm平台，不过，这个后续再说吧。</p>
-]]></content>
-      <categories>
-        <category>工作总结</category>
       </categories>
   </entry>
 </search>

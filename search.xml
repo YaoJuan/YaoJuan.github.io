@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>SwiftUI初体验</title>
     <url>/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/</url>
     <content><![CDATA[<h3 id="自我代码风格的历程"><a href="#自我代码风格的历程" class="headerlink" title="自我代码风格的历程"></a>自我代码风格的历程</h3><h6 id="Part1"><a href="#Part1" class="headerlink" title="Part1"></a>Part1</h6><p>​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>用到的MVVM+<a href="https://github.com/ReactiveX/RxSwift" target="_blank" rel="noopener">RxSwift</a>，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没有updateUI的代码,用户的操作改变了视图数据，自动刷新UI。不得不说，当时写完的代码自己看起来都觉得一目了然，特别舒服，连注释都不用写太多</p>
@@ -65,47 +106,6 @@
 ]]></content>
       <categories>
         <category>swift</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>NSThead和内核线程的转换</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
-<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
-<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
-<blockquote>
-<ol>
-<li>pthread 是什么</li>
-<li>NSThread 如何封装 pthread</li>
-</ol>
-</blockquote>
-<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
-<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
-<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
-<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
-<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
-<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
-<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
-
-<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
-<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
-<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
-<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
-<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
-<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-]]></content>
-      <categories>
-        <category>原理分析</category>
       </categories>
   </entry>
   <entry>
@@ -422,6 +422,49 @@
       </categories>
   </entry>
   <entry>
+    <title>swiftMonkey的实践</title>
+    <url>/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在了解到monkey测试之后，觉得这个东西的确比较有必要，用起来成本太低了，只需要配置好点击一下，然后就可以让他模拟用户的行为。对于拿来做上线前的压力测试，获取一些crash是很有必要的。尽管并不一定能测出来。但是还是那句话，成本太低了，一台电脑，一部手机就可以拥有一个免费劳工</p>
+<h3 id="预研"><a href="#预研" class="headerlink" title="预研"></a>预研</h3><p>作为一个普通开发工程师，之前对这方面几乎一片空白,只知道android那边有现成的，所以先去调查了一下。发现了有3个可选的技术</p>
+<ul>
+<li><a href="https://testerhome.com/topics/2718" target="_blank" rel="noopener"><strong>CrashMonkey</strong></a>  后面发现不支持新版本Xcode，所以不可选</li>
+<li><a href="https://testerhome.com/topics/9810" target="_blank" rel="noopener"><strong>Fastmonkey</strong></a> 这个很厉害，配合别人的<a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">二次开发</a>，功能特别强大，但是也只能支持低版本的Xcode,和别人交流可以在电脑装一个低版本的Xcode专门来跑monkey，但是可能由于我的系统版本的问题老是崩溃，所以暂时放下。但是这个肯定要回来再看的</li>
+<li><a href="https://github.com/zalando/SwiftMonkey" target="_blank" rel="noopener"><strong>SwiftMonkey</strong></a> 一款XCUITesting框架开发的app稳定性测试工具，除了性能没有FastMonkey那么快，好像也还行。于是就决定用这个</li>
+</ul>
+<h3 id="SwiftMoneky"><a href="#SwiftMoneky" class="headerlink" title="SwiftMoneky"></a><a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">SwiftMoneky</a></h3><ul>
+<li><p><strong>SDK接入</strong>： 接入特别简单，直接手动拖拽和pods，我用的手动拖拽，一共2个project对应两个framework，swiftmonkey是拿来做测试的，monkeypaws是一个图形化的工具，用来展示具体的运动轨迹的</p>
+</li>
+<li><p><strong>OC项目</strong>: 做好对应的桥接文件的配置，做好项目依赖。主项目依赖paws,新建的XCUITest依赖monkey。根据文档配置好代码跑起来就没问题</p>
+</li>
+<li><p><strong>自定义插桩</strong>：monkey是<u>支持自定义的事件的插桩</u>的,写好对应的代码，配置好间隔权重就可以。例如登录，有时候你并不想monkey一直在登录界面做一些无用功，就可以自定义一个登录的插桩。可以配合XCUITest的代码录制来一起做</p>
+</li>
+</ul>
+  <figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">    Add a block for fixed-interval events.</span></span><br><span class="line"><span class="comment">  </span></span><br><span class="line"><span class="comment">    - parameter interval: How often to generate this</span></span><br><span class="line"><span class="comment">      event. One of these events will be generated after</span></span><br><span class="line"><span class="comment">      this many randomised events have been generated.</span></span><br><span class="line"><span class="comment">    - parameter action: The block to run when this event</span></span><br><span class="line"><span class="comment">      is generated.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">func</span> <span class="title">addAction</span><span class="params">(interval: Int, action: @escaping ActionClosure)</span></span> &#123;</span><br><span class="line">    regularActions.append((interval: interval, action: actInForeground(action)))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="自动化"><a href="#自动化" class="headerlink" title="自动化"></a>自动化</h3><p>但是对于一个工具来说，目前这样不太合格，需要开发人员去运行ide，去一直看着电脑跑，对测试更不友好。所以需要做一些自动化的事情。所以想到配合Jenkins新建一个job。</p>
+<p>自己规划了一下计划，决定成品应该是这样的，需要测试的人应该只用输入需要跑的事件和测试代码的分支。然后就可以不用管，等待时间查看日志就行。所以job的大概执行思路是这样的</p>
+<p><img src="/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/setp.png" alt="setp"></p>
+<p>但是按着这个思路做还是遇到了一些问题。</p>
+<ul>
+<li><p><strong>单次跑monkey的问题</strong>:  之前跑都是通过Xcode点击来跑的，但是在jenkins上要基于命令行，其实这个还是比较简单。xcode作为一个gui工具也是基与xcodebuild来做的这些。查了下xcodebuild的资料，其实运行测试只用加上test的参数就行。整个命令下来大概是这个样子</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">xcodebuild test -workspace xx.xcworkspace -scheme xx -destination 'platform=xx,id=xx' -derivedDataPath xx</span><br></pre></td></tr></table></figure>
+
+<p>其中platform可以选择iOS和iOS Simulator,id是设备id，也可以根据name来做检索</p>
+</li>
+</ul>
+<ul>
+<li><p><strong>获取设备信息的问题:</strong> 可以通过<a href="https://github.com/ios-control/ios-deploy" target="_blank" rel="noopener">ios-deploy</a>来做处理，通过<u>ios-deploy -c –no-wifi -j</u>获取json格式的数据，后续可以通过一些处理拿到id或者name，交给上一步去做处理。我是用ruby写了个简单的脚本。这个就不多说了</p>
+</li>
+<li><p><strong>循环跑的问题:</strong> 在单次用例失败过后，monekey会停下来，尽管你可以通过设置continueAfterFailure=true来做，但是并不推荐。找了下资料，当一条命令执行成功之后，才会继续走下一条命令。在第一步的命令后面加上||true ，就算这个monkey失败了，也标记为成功，然后写个循环就好了</p>
+</li>
+</ul>
+<h3 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h3><p>其实到这里，差不多就结束了，通过这段时间的了解，发现XCUITest特别强大，我们可以录制好一段自定的插桩，来做业务的自动化测试。也可以做性能测试，例如启动速度，cpu，内存，disk，这些都是自带的一些API。后续也会往这方面再查看一下</p>
+]]></content>
+      <categories>
+        <category>swift</category>
+      </categories>
+  </entry>
+  <entry>
     <title>iOS卡顿监控遇到的一些难题</title>
     <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
@@ -484,46 +527,46 @@
       </categories>
   </entry>
   <entry>
-    <title>swiftMonkey的实践</title>
-    <url>/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在了解到monkey测试之后，觉得这个东西的确比较有必要，用起来成本太低了，只需要配置好点击一下，然后就可以让他模拟用户的行为。对于拿来做上线前的压力测试，获取一些crash是很有必要的。尽管并不一定能测出来。但是还是那句话，成本太低了，一台电脑，一部手机就可以拥有一个免费劳工</p>
-<h3 id="预研"><a href="#预研" class="headerlink" title="预研"></a>预研</h3><p>作为一个普通开发工程师，之前对这方面几乎一片空白,只知道android那边有现成的，所以先去调查了一下。发现了有3个可选的技术</p>
+    <title>逆向笔记一</title>
+    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
+<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
+<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
+<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
+</li>
+<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
+</li>
+<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
+<hr>
+</li>
+</ul>
+<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
+<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
+<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
+<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
+<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
+</ul>
+<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
+<ol>
+<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
+<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
+<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
+<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
+<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
+<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
+<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
+<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
+<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
+<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
+<li>写完之后做验证以及写好Tweak</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
 <ul>
-<li><a href="https://testerhome.com/topics/2718" target="_blank" rel="noopener"><strong>CrashMonkey</strong></a>  后面发现不支持新版本Xcode，所以不可选</li>
-<li><a href="https://testerhome.com/topics/9810" target="_blank" rel="noopener"><strong>Fastmonkey</strong></a> 这个很厉害，配合别人的<a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">二次开发</a>，功能特别强大，但是也只能支持低版本的Xcode,和别人交流可以在电脑装一个低版本的Xcode专门来跑monkey，但是可能由于我的系统版本的问题老是崩溃，所以暂时放下。但是这个肯定要回来再看的</li>
-<li><a href="https://github.com/zalando/SwiftMonkey" target="_blank" rel="noopener"><strong>SwiftMonkey</strong></a> 一款XCUITesting框架开发的app稳定性测试工具，除了性能没有FastMonkey那么快，好像也还行。于是就决定用这个</li>
+<li><input disabled type="checkbox"> </li>
 </ul>
-<h3 id="SwiftMoneky"><a href="#SwiftMoneky" class="headerlink" title="SwiftMoneky"></a><a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">SwiftMoneky</a></h3><ul>
-<li><p><strong>SDK接入</strong>： 接入特别简单，直接手动拖拽和pods，我用的手动拖拽，一共2个project对应两个framework，swiftmonkey是拿来做测试的，monkeypaws是一个图形化的工具，用来展示具体的运动轨迹的</p>
-</li>
-<li><p><strong>OC项目</strong>: 做好对应的桥接文件的配置，做好项目依赖。主项目依赖paws,新建的XCUITest依赖monkey。根据文档配置好代码跑起来就没问题</p>
-</li>
-<li><p><strong>自定义插桩</strong>：monkey是<u>支持自定义的事件的插桩</u>的,写好对应的代码，配置好间隔权重就可以。例如登录，有时候你并不想monkey一直在登录界面做一些无用功，就可以自定义一个登录的插桩。可以配合XCUITest的代码录制来一起做</p>
-</li>
-</ul>
-  <figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">    Add a block for fixed-interval events.</span></span><br><span class="line"><span class="comment">  </span></span><br><span class="line"><span class="comment">    - parameter interval: How often to generate this</span></span><br><span class="line"><span class="comment">      event. One of these events will be generated after</span></span><br><span class="line"><span class="comment">      this many randomised events have been generated.</span></span><br><span class="line"><span class="comment">    - parameter action: The block to run when this event</span></span><br><span class="line"><span class="comment">      is generated.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">func</span> <span class="title">addAction</span><span class="params">(interval: Int, action: @escaping ActionClosure)</span></span> &#123;</span><br><span class="line">    regularActions.append((interval: interval, action: actInForeground(action)))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="自动化"><a href="#自动化" class="headerlink" title="自动化"></a>自动化</h3><p>但是对于一个工具来说，目前这样不太合格，需要开发人员去运行ide，去一直看着电脑跑，对测试更不友好。所以需要做一些自动化的事情。所以想到配合Jenkins新建一个job。</p>
-<p>自己规划了一下计划，决定成品应该是这样的，需要测试的人应该只用输入需要跑的事件和测试代码的分支。然后就可以不用管，等待时间查看日志就行。所以job的大概执行思路是这样的</p>
-<p><img src="/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/setp.png" alt="setp"></p>
-<p>但是按着这个思路做还是遇到了一些问题。</p>
-<ul>
-<li><p><strong>单次跑monkey的问题</strong>:  之前跑都是通过Xcode点击来跑的，但是在jenkins上要基于命令行，其实这个还是比较简单。xcode作为一个gui工具也是基与xcodebuild来做的这些。查了下xcodebuild的资料，其实运行测试只用加上test的参数就行。整个命令下来大概是这个样子</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">xcodebuild test -workspace xx.xcworkspace -scheme xx -destination 'platform=xx,id=xx' -derivedDataPath xx</span><br></pre></td></tr></table></figure>
-
-<p>其中platform可以选择iOS和iOS Simulator,id是设备id，也可以根据name来做检索</p>
-</li>
-</ul>
-<ul>
-<li><p><strong>获取设备信息的问题:</strong> 可以通过<a href="https://github.com/ios-control/ios-deploy" target="_blank" rel="noopener">ios-deploy</a>来做处理，通过<u>ios-deploy -c –no-wifi -j</u>获取json格式的数据，后续可以通过一些处理拿到id或者name，交给上一步去做处理。我是用ruby写了个简单的脚本。这个就不多说了</p>
-</li>
-<li><p><strong>循环跑的问题:</strong> 在单次用例失败过后，monekey会停下来，尽管你可以通过设置continueAfterFailure=true来做，但是并不推荐。找了下资料，当一条命令执行成功之后，才会继续走下一条命令。在第一步的命令后面加上||true ，就算这个monkey失败了，也标记为成功，然后写个循环就好了</p>
-</li>
-</ul>
-<h3 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h3><p>其实到这里，差不多就结束了，通过这段时间的了解，发现XCUITest特别强大，我们可以录制好一段自定的插桩，来做业务的自动化测试。也可以做性能测试，例如启动速度，cpu，内存，disk，这些都是自带的一些API。后续也会往这方面再查看一下</p>
 ]]></content>
       <categories>
-        <category>swift</category>
+        <category>逆向</category>
       </categories>
   </entry>
   <entry>
@@ -607,46 +650,50 @@
       </categories>
   </entry>
   <entry>
-    <title>逆向笔记一</title>
-    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
-<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
-<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
-<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
+    <title>编译速度优化实践</title>
+    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
+<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
+<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
+<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
 </li>
-<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
-</li>
-<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
-<hr>
+<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
+<blockquote>
+<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
+</blockquote>
 </li>
 </ul>
-<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
-<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
-<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
-<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
-<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
-</ul>
-<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
+<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
+<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
+<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
+<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
+<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
+<blockquote>
 <ol>
-<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
-<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
-<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
-<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
-<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
-<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
-<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
-<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
-<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
-<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
-<li>写完之后做验证以及写好Tweak</li>
+<li>修改项目的build settings</li>
+<li>精简build phases</li>
+<li>调整源码</li>
 </ol>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
-<ul>
-<li><input disabled type="checkbox"> </li>
-</ul>
+</blockquote>
+<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
+
+<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
+
+<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
+
+<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
+<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
+<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
+<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
 ]]></content>
       <categories>
-        <category>逆向</category>
+        <category>项目优化</category>
       </categories>
   </entry>
 </search>

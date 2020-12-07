@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins  时间测量  * ​ Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到                   * ​ 在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命">
+<meta property="og:type" content="article">
+<meta property="og:title" content="编译速度优化实践">
+<meta property="og:url" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins  时间测量  * ​ Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到                   * ​ 在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png">
+<meta property="og:image" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png">
+<meta property="og:image" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png">
+<meta property="og:image" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png">
+<meta property="article:published_time" content="2020-12-07T09:36:52.000Z">
+<meta property="article:modified_time" content="2020-12-07T09:42:58.558Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png">
+
+<link rel="canonical" href="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>编译速度优化实践 | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">9</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          编译速度优化实践
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2020-12-07 17:36:52 / 修改时间：17:42:58" itemprop="dateCreated datePublished" datetime="2020-12-07T17:36:52+08:00">2020-12-07</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/" itemprop="url" rel="index"><span itemprop="name">项目优化</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
+<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
+<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
+<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
+</li>
+<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
+<blockquote>
+<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
+</blockquote>
+</li>
+</ul>
+<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
+<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
+<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
+<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
+<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
+<blockquote>
+<ol>
+<li>修改项目的build settings</li>
+<li>精简build phases</li>
+<li>调整源码</li>
+</ol>
+</blockquote>
+<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
+
+<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
+
+<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
+
+<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
+<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
+<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
+<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/" title="编译速度优化实践">http://qingheblog.online/项目优化/编译速度优化实践/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/" rel="prev" title="SwiftUI初体验">
+      <i class="fa fa-chevron-left"></i> SwiftUI初体验
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#时间测量"><span class="nav-number">2.</span> <span class="nav-text">时间测量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#耗时分析"><span class="nav-number">3.</span> <span class="nav-text">耗时分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#修改build-settings"><span class="nav-number">4.</span> <span class="nav-text">修改build settings</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#Architectures"><span class="nav-number">4.0.1.</span> <span class="nav-text">Architectures</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><span class="nav-number">4.0.2.</span> <span class="nav-text">Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><span class="nav-number">4.0.3.</span> <span class="nav-text">Debug Information Format (DEBUG_INFORMATION_FORMAT)</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调整源码"><span class="nav-number">5.</span> <span class="nav-text">调整源码</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#pod二进制化"><span class="nav-number">5.0.1.</span> <span class="nav-text">pod二进制化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#总结"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">9</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : '2ee44ad094eec59dc0f0cd75dc073b9c',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

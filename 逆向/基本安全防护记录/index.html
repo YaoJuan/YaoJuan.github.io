@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 ​ 最近准备做一些基础的安全防护的功能，从最基础的反调试、反动态库注入，到反防护代码之间的博弈。发现了解越深懂的越不足。但是还是对这些基本的工作做一个简单的记录  基础的防护  * 反调试         * Ptrace               1. 程序被Xcode安装直接闪退                              2. 通过终端lldb附加失败">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基本安全防护记录">
+<meta property="og:url" content="http://qingheblog.online/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 ​ 最近准备做一些基础的安全防护的功能，从最基础的反调试、反动态库注入，到反防护代码之间的博弈。发现了解越深懂的越不足。但是还是对这些基本的工作做一个简单的记录  基础的防护  * 反调试         * Ptrace               1. 程序被Xcode安装直接闪退                              2. 通过终端lldb附加失败">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2020-12-21T07:48:26.000Z">
+<meta property="article:modified_time" content="2020-12-21T07:53:24.139Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://qingheblog.online/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>基本安全防护记录 | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">10</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          基本安全防护记录
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2020-12-21 15:48:26 / 修改时间：15:53:24" itemprop="dateCreated datePublished" datetime="2020-12-21T15:48:26+08:00">2020-12-21</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E9%80%86%E5%90%91/" itemprop="url" rel="index"><span itemprop="name">逆向</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>​    最近准备做一些基础的安全防护的功能，从最基础的反调试、反动态库注入，到反防护代码之间的博弈。发现了解越深懂的越不足。但是还是对这些基本的工作做一个简单的记录</p>
+<h4 id="基础的防护"><a href="#基础的防护" class="headerlink" title="基础的防护"></a>基础的防护</h4><ul>
+<li><p>反调试</p>
+<ul>
+<li><p>Ptrace</p>
+<blockquote>
+<ol>
+<li><p>程序被Xcode安装直接闪退</p>
+</li>
+<li><p>通过终端lldb附加失败</p>
+</li>
+<li><p>用户可以正常启动</p>
+</li>
+</ol>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ptrace (PT_DENY_ATTCH,<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>sysctl</p>
+<blockquote>
+<ol>
+<li><p>这个函数的作用去检测进程的一些状态，其中可选之一的参数就是进程的被附加状态</p>
+</li>
+<li><p>sysctl（查询信息的数组（放字节码），数组的大小，结构信息的结构体指针，结构体大小，和2一样，和3一样）</p>
+</li>
+<li><p>在接受信息的结构体中，kp_proc属性 有一个标记 p_flag</p>
+</li>
+<li><p>查看第12位 是否为 1（1代表着有调试器附加）可通过P_TRACED查询</p>
+</li>
+</ol>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> name[<span class="number">4</span>];<span class="comment">//里面放字节码。查询的信息</span></span><br><span class="line">name[<span class="number">0</span>] = CTL_KERN;<span class="comment">//内核查询</span></span><br><span class="line">name[<span class="number">1</span>] = KERN_PROC;<span class="comment">//查询进程</span></span><br><span class="line">name[<span class="number">2</span>] = KERN_PROC_PID;<span class="comment">//传递的参数是进程的ID</span></span><br><span class="line">name[<span class="number">3</span>] = getpid();<span class="comment">//PID的值</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">kinfo_proc</span> <span class="title">info</span>;</span><span class="comment">//接受查询结果的结构体</span></span><br><span class="line"><span class="keyword">size_t</span> info_size = <span class="keyword">sizeof</span>(info);</span><br><span class="line"><span class="keyword">if</span>(sysctl(name, <span class="number">4</span>, &amp;info, &amp;info_size, <span class="number">0</span>, <span class="number">0</span>))&#123;</span><br><span class="line">    NSLog(@<span class="string">"查询失败"</span>);</span><br><span class="line">    <span class="keyword">return</span> NO;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//看info.kp_proc.p_flag 的第12位。如果为1，表示调试状态。</span></span><br><span class="line"><span class="comment">//(info.kp_proc.p_flag &amp; P_TRACED)</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> ((info.kp_proc.p_flag &amp; P_TRACED) != <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li><p>反动态库注入</p>
+<p>其实就是在上线前记录所有的动态库的名字，拼接成字符串。上线后通过dyld来循环获取每一个动态库是否是在字符串中有记录，如果没有说明是被注入的，可以做异常上报</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> count = _dyld_image_count();<span class="comment">//加载了多少数量</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; count; i++) &#123;</span><br><span class="line">        <span class="comment">//遍历拿到库名称！</span></span><br><span class="line">       <span class="keyword">const</span> <span class="keyword">char</span> * imageName = _dyld_get_image_name(i);</span><br><span class="line">        <span class="comment">//</span></span><br><span class="line">        <span class="keyword">if</span> (!<span class="built_in">strstr</span>(libraries, imageName)&amp;&amp;!<span class="built_in">strstr</span>(imageName, <span class="string">"/var/mobile/Containers/Bundle/Application"</span>)) &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// report libary &amp;&amp; user info</span></span><br><span class="line">            </span><br><span class="line">            <span class="keyword">return</span> YES;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> NO;</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<ul>
+<li><p>获取是否是越狱状态</p>
+<p>​      直接通过获取进程的dyld是否有动态库插入来判断</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">char</span> * dlname = getenv(<span class="string">"DYLD_INSERT_LIBRARIES"</span>);</span><br><span class="line">  <span class="keyword">if</span> (dlname) &#123;</span><br><span class="line">      <span class="keyword">return</span> YES;</span><br><span class="line">  &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">      <span class="keyword">return</span> NO;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+
+</li>
+</ul>
+<h4 id="对防护的简单攻击"><a href="#对防护的简单攻击" class="headerlink" title="对防护的简单攻击"></a>对防护的简单攻击</h4><p>   对于有经验的工程师，肯定会第一时间去把ptrace和sysctl直接干掉，这点很简单，通过fishhook就可以做到</p>
+<ul>
+<li>破解ptrace<ul>
+<li>通过fishhook函数勾住ptrace</li>
+<li>判断参数1，是否拒绝附加，如果是，就直接返回</li>
+</ul>
+</li>
+<li>破解sysctl<ul>
+<li>通过fishhook函数勾住sysctl</li>
+<li>调用原始的函数</li>
+<li>取出结构一的标记判断</li>
+<li>通过异或 P_TRACED 取反。修改标记，达到破解的效果</li>
+</ul>
+</li>
+</ul>
+<h4 id="进一层的防护"><a href="#进一层的防护" class="headerlink" title="进一层的防护"></a>进一层的防护</h4><p>  为了避免被简单攻击给攻击到，所以一般会做进一层的防护，基本原理还是围绕着上面的那些，但是只是做得更隐秘，不会被简单的干掉</p>
+<ul>
+<li><p>提前执行 将检测函数放入Framwork中</p>
+</li>
+<li><p>混淆类名、方法名：通过宏定义，写入PCH文件进行类名、方法名混淆。</p>
+</li>
+<li><p>字符串加密：所有的字符串常量拆分成字符，然后通过异或运算隐藏字符串常量</p>
+</li>
+<li><p>syscall：通过syscall 调用系统函数，使用fishhook和lldb 符号断点都拿不到。例如调用ptrace我们可以这样做,其中的对应的数字编号都在对应的头文件记载</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">syscall(<span class="number">26</span>,<span class="number">31</span>,<span class="number">0</span>,<span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<ul>
+<li><p>防护fishhook：通过 dlopen（）拿到模块句柄 、 通过 dlsym（）获得函数地址，例如直接ptrace我们可以换一种方式做，其中也用到了上面所说的字符串变相加密，避免直接去常量区找到了“ptrace”</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//拼接一个 ptrace</span></span><br><span class="line">  <span class="keyword">unsigned</span> <span class="keyword">char</span> funcStr[] = &#123;</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'p'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'t'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'r'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'a'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'c'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'e'</span>),</span><br><span class="line">      (<span class="string">'a'</span> ^ <span class="string">'\0'</span>),</span><br><span class="line">  &#125;;</span><br><span class="line">  <span class="keyword">unsigned</span> <span class="keyword">char</span> * p = funcStr;</span><br><span class="line">  <span class="keyword">while</span> (((*p) ^= <span class="string">'a'</span>) != <span class="string">'\0'</span>) p++;</span><br><span class="line">  </span><br><span class="line">  </span><br><span class="line">  <span class="comment">//通过dlopen拿到句柄</span></span><br><span class="line">  <span class="keyword">void</span> * handle = dlopen(<span class="string">"/usr/lib/system/libsystem_kernel.dylib"</span>, RTLD_LAZY);</span><br><span class="line">  <span class="comment">//定义函数指针</span></span><br><span class="line">  <span class="keyword">int</span> (*ptrace_p)(<span class="keyword">int</span> _request, <span class="keyword">pid_t</span> _pid, <span class="keyword">caddr_t</span> _addr, <span class="keyword">int</span> _data);</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">if</span> (handle) &#123;</span><br><span class="line">      ptrace_p = dlsym(handle, (<span class="keyword">const</span> <span class="keyword">char</span> *)funcStr);</span><br><span class="line">      <span class="keyword">if</span> (ptrace_p) &#123;</span><br><span class="line">          ptrace_p(PT_DENY_ATTACH, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span> );</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>汇编软中断的方式触发系统函数，在代码中，我们可以直接写内联汇编</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> __arm64__</span></span><br><span class="line">    <span class="function"><span class="keyword">asm</span> <span class="title">volatile</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"mov x0,#26\n"</span></span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"mov x1,#31\n"</span></span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"mov x2,#0\n"</span></span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"mov x3,#0\n"</span></span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"mov x16,#0\n"</span><span class="comment">//中断根据x16 里面的值，跳转syscall</span></span></span></span><br><span class="line"><span class="function"><span class="params">                  <span class="string">"svc #0x80\n"</span><span class="comment">//这条指令就是触发中断（系统级别的跳转！）</span></span></span></span><br><span class="line"><span class="function"><span class="params">     )</span></span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实攻防就是有攻就有防，本来就是双方的博弈，基于上面的加密也可以再做防护。作为防护方要做的就是避免被找到防护代码，攻击方就是找到防护代码然后干掉它。做到后面就是反调试、反反调试、反反反调试。听起来像套娃，具体能做到第几层也是根据经验来做进一步取舍</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/" title="基本安全防护记录">http://qingheblog.online/逆向/基本安全防护记录/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/" rel="prev" title="编译速度优化实践">
+      <i class="fa fa-chevron-left"></i> 编译速度优化实践
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#基础的防护"><span class="nav-number">2.</span> <span class="nav-text">基础的防护</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#对防护的简单攻击"><span class="nav-number">3.</span> <span class="nav-text">对防护的简单攻击</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#进一层的防护"><span class="nav-number">4.</span> <span class="nav-text">进一层的防护</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">5.</span> <span class="nav-text">最后</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : 'f3e22744de332d4c41529e5f4824a74c',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

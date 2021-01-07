@@ -1,6 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>KVO和KVC</title>
+    <url>/uncategorized/KVO%E5%92%8CKVC/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下</p>
+<h4 id="KVO"><a href="#KVO" class="headerlink" title="KVO"></a>KVO</h4><p>KVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下</p>
+<h6 id="KVO的使用"><a href="#KVO的使用" class="headerlink" title="KVO的使用"></a>KVO的使用</h6><figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    &#x2F;&#x2F; Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 &#x3D; p1;</span><br><span class="line">    NSLog(@&quot;%p&quot;,p1);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)touchesBegan:(NSSet&lt;UITouch *&gt; *)touches withEvent:(UIEvent *)event &#123;</span><br><span class="line">    self.p1.age &#x3D; 20;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context</span><br><span class="line">&#123;</span><br><span class="line">    if ([keyPath  isEqual: @&quot;age&quot;]) &#123;</span><br><span class="line">        NSLog(@&quot;%p的new value &#x3D; %zd,old value &#x3D; %zd&quot;,object,[change[@&quot;new&quot;] integerValue] ,[change[@&quot;old&quot;] integerValue]);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>调用addobserver方法来监听哪个对象，由哪个对象监听。监听什么变量，以及一些options和context来传递参数</li>
+<li>在监听对象的上下文里调用observeValueForKeyPath来监听。通过对应的参数取值</li>
+</ol>
+<h6 id="KVO的探索"><a href="#KVO的探索" class="headerlink" title="KVO的探索"></a>KVO的探索</h6><p>当我再创建一个对象p2，同样的在改变p1的同时也改变p2的值，但是我不监听p2的改变。如预期一样，在观察函数中并没有收到p2改变的信息。</p>
+<p>尽管结果如我预期，但是我还是好奇，其实2个对象都只是执行了set方法，为什么一个会走监听一个不会走监听呢？基于之前说过一个是派生类，于是我决定打印一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    &#x2F;&#x2F; Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 &#x3D; p1;</span><br><span class="line">    </span><br><span class="line">    Person *p2 &#x3D; [[Person alloc] init];</span><br><span class="line">    self.p2 &#x3D; p2;</span><br><span class="line"></span><br><span class="line">    NSLog(@&quot;p1的地址为%p,p2的地址为%p&quot;,p1, p2);</span><br><span class="line">    NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(p1.class), NSStringFromClass(p2.class));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo1.png" alt="KVO和KVC"></p>
+<p>但是并没有得到我想要的结果，但是因为之前获取内存那里用不同的api得到了不同结果，吸取教训。我用其他的api试试</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(object_getClass(p1)), NSStringFromClass(object_getClass(p2)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo2.png" alt="KVO和KVC"></p>
+<p>果然，p1在添加观察者之后他的类名变了。而且这个类显然不是由系统创建的，这个可以提前说一下，是runtime调用api动态创建的。另外，在前面一章我们知道对象的isa是指向类对象的。所以应该是创建了一个新类对象，然后改变了isa的指向。另外我们也说过，是通过isa去找类对象里的方法实现(因为调用的是setAge，是个对象方法)。所以我想分别再打印一下他们的imp</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">IMP imp1 &#x3D; [p1 methodForSelector:@selector(setAge:)];</span><br><span class="line">IMP imp2&#x3D; [p2 methodForSelector:@selector(setAge:)];</span><br><span class="line">NSLog(@&quot;p1的实现是%p，p2的实现是%p&quot;,imp1,imp2);</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo3.png" alt="KVO和KVC"></p>
+<p>结果大出意料，被监听的对象的imp也成了一个c语言函数，通过函数名很好理解，设了一个longlong类型并且通知，所以可以猜测得到如果监听到其他类型应该也有对应函数的实现。其实这一点我们可以搜索一下，我们可以直接在foundation框架通过关键字搜索。首先手动用clang手动编译并且链接Foundation，然后调用nm 命令来通过关键字ValueAndNotify来查找，结果如下<img src="/uncategorized/KVO%E5%92%8CKVC/kvo4.png" alt="KVO和KVC"></p>
+<p>所以我们也可以推算这个是看碟下菜，什么类型就调用对应的函数</p>
+<h6 id="派生类的内部探究"><a href="#派生类的内部探究" class="headerlink" title="派生类的内部探究"></a>派生类的内部探究</h6><p>另外，我想跟进一步看看这个派生类，所以就干脆利用runtime来打印所有的iv ars和方法名。结果总结成图是这个样子</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo5.png" alt="KVO和KVC"></p>
+<p>由于里面重写了class，所以就造成了我们开始调用class发现没有改变的事实，其实我猜测就是为了封装性，因为对于正在编写代码的你我来说，并不需要知道知道他是什么类，他有person类的一些特质，我们就把它当成person类。也方便我们做一些类型比较。</p>
+<h6 id="NSSetIntValueAndNotify的实现"><a href="#NSSetIntValueAndNotify的实现" class="headerlink" title="NSSetIntValueAndNotify的实现"></a>NSSetIntValueAndNotify的实现</h6><p>我们目前只知道了他变相Hook了原始方法为一个c语言的函数，但是我们还是想知道具体的实现。由于之前学过逆向，这个也不难，找到越狱机，导出sharecache，这里就有foudation的实现。通过ida来反汇编，可以通过汇编来看出一些端倪。这里就不具体展示，直接总结了</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo6.png" alt="KVO和KVC"></p>
+<p>大概就是这样，kvo对外的通知其实就是通过3句函数来实现的，在will和did之间完成赋值操作。外界就会收到observer的改变</p>
+<ul>
+<li>调用willChangeValueForKey:</li>
+<li>调用原来的setter实现</li>
+<li>调用didChangeValueForKey:</li>
+<li>didChangeValueForKey:内部会调用observer的observeValueForKeyPath:ofObject:change:context:方法</li>
+</ul>
+<h4 id="KVC"><a href="#KVC" class="headerlink" title="KVC"></a>KVC</h4><p>相对于KVO来说KVC就简单许多，KVC的全称是Key-Value Coding，俗称“键值编码”，可以通过一个key来访问(获取、设值)某个属性</p>
+<h6 id="KVC的使用"><a href="#KVC的使用" class="headerlink" title="KVC的使用"></a>KVC的使用</h6><figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>)setValue:(<span class="keyword">id</span>)value forKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="keyword">void</span>)setValue:(<span class="keyword">id</span>)value forKey:(<span class="built_in">NSString</span> *)key;</span><br><span class="line">- (<span class="keyword">id</span>)valueForKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="keyword">id</span>)valueForKey:(<span class="built_in">NSString</span> *)key;</span><br></pre></td></tr></table></figure>
+
+<h6 id="KVC的函数寻找途径"><a href="#KVC的函数寻找途径" class="headerlink" title="KVC的函数寻找途径"></a>KVC的函数寻找途径</h6><p>其实这个在kvc的官方文档就有写，就用图来表示</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo7.png" alt="KVO和KVC"></p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo8.png" alt="KVO和KVC"></p>
+<h6 id="注意点"><a href="#注意点" class="headerlink" title="注意点"></a>注意点</h6><p>通过实践得知，我们就算不通过property的方式来生成成员变量，而是直接手动生成属性。尽管这样不会生成set,get方法。通过kvc去赋值成功之后也会触发kvo。因为我们之前说过,kvo的本质还是通过willchange 和didchange之间的组合来做的操作，kvc在做赋值时自己做了对应的实现。切不可把kvo直接等价于set变量的hook实现</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过一系列探究，我们知道了kvo的具体实现，以及派生类的内部，并且知道了kvo支持的数据类型。以及kvc的一些寻值路径。特别要记住一点，kvc会自动触发kvo,尽管没有set方法</p>
+]]></content>
+  </entry>
+  <entry>
     <title>NSThead和内核线程的转换</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
@@ -422,6 +470,61 @@
       </categories>
   </entry>
   <entry>
+    <title>iOS中的内存分配</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
+<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
+
+<p> 以及</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
+
+<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
+<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
+<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
+<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
+<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
+<p>其实我们可以这么理解</p>
+<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
+<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
+<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
+<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
+<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
+
+<p>1&lt;&lt;4就是16，即16字节对齐</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>iOS卡顿监控遇到的一些难题</title>
     <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
@@ -712,6 +815,70 @@
       </categories>
   </entry>
   <entry>
+    <title>类的本质</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在上一章中，我们大概说了下内存分配相关的知识,我们从中知道了对象中保存了一个结构体指针isa，这个结构体是什么呢，对象又是怎么调用方法的呢，所以基于isa我们做进一步的了解</p>
+<h4 id="对象的分类"><a href="#对象的分类" class="headerlink" title="对象的分类"></a>对象的分类</h4><p>Objective-C中的对象，简称OC对象，主要可以分为3种</p>
+<ul>
+<li><p>instance对象（实例对象）</p>
+<p> instance对象就是通过类alloc出来的对象，每次调用alloc都会产生新的instance对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj1 &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSObject *obj2 &#x3D; [[NSObject alloc] init];</span><br></pre></td></tr></table></figure>
+
+<p>object1、object2是NSObject的instance对象(实例对象),分别占据着两块不同的内存</p>
+<p>instance对象在内存中存储的信息包括isa指针、其他成员变量</p>
+</li>
+<li><p>class对象（类对象）</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj1 &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSObject *obj2 &#x3D; [[NSObject alloc] init];</span><br><span class="line">Class nsobjectClass &#x3D; obj1.class;</span><br><span class="line">Class nsobjectClass2 &#x3D; object_getClass(obj1)</span><br></pre></td></tr></table></figure>
+
+<p>nsobjectClass ~ nsobjectClass2都是NSObject的class对象（类对象）,它们是同一个对象。每个类在内存中有且只有一个class对象</p>
+<p>class对象在内存中存储的信息主要包括</p>
+<p>isa指针、superclass指针、类的属性信息（@property）、类的对象方法信息（instance method）、类的协议信息（protocol）、类的成员变量信息（ivar）等等</p>
+</li>
+<li><p>meta-class对象（元类对象） </p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Class nsobjctMetaClass &#x3D; object_getClass(nsobjectClass);</span><br></pre></td></tr></table></figure>
+
+<p>objectMetaClass是NSObject的meta-class对象（元类对象）</p>
+<p>每个类在内存中有且只有一个meta-class对象</p>
+<p>meta-class对象和class对象的内存结构是一样的(都是struct objc_class类型)，但是用途不一样</p>
+</li>
+</ul>
+<h4 id="isa指针"><a href="#isa指针" class="headerlink" title="isa指针"></a>isa指针</h4><p>我们发现无论是实例对象，类对象，元类对象都有一个共同的属性isa。总所周知，我们实例对象中只有isa和成员变量，对象方法又保存在类对象中。那当我们用[objc instanceFunctionName]的时候是怎么处理的呢，其实就是通过isa找到类对象去做的调用。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A81.png" alt="image-类的本质"></p>
+<ul>
+<li>当调用对象方法时，通过instance的isa找到class，最后找到对象方法的实现进行调用</li>
+<li>当调用类方法时，通过class的isa找到meta-class，最后找到类方法的实现进行调用</li>
+</ul>
+<p>我们把思想抽象一点，从而把类对象当成元类对象的对象来看是一点问题都没有的。</p>
+<p>我们可以把isa指针理解成对应类的地址，但是这并不准确，通过源码得知其实是做了一个位运算的</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A82.png" alt="image-类的本质"></p>
+<h4 id="superclass指针"><a href="#superclass指针" class="headerlink" title="superclass指针"></a>superclass指针</h4><p>我们在上面有提到过类对象和元类对象中都有superclass指针，那么他是来干什么的呢。由于objc是面向对象的，对象对象的三大特性之一，继承。当一个类继承自父类时，要调用一个父类的对象方法，通过isa找到类对象，当类对象中没有这个方法时，就会通过superclass找到父类对象，从而一层层的找函数实现</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A83.png" alt="image-类的本质"></p>
+<p>当Student的instance对象要调用Person的对象方法时，会先通过isa找到Student的class，然后通过superclass找到Person的class，最后找到对象方法的实现进行调用</p>
+<p>同理元类对象也有一个类似的链条，相对应的就是类方法的实现寻找，就不做图解了</p>
+<h4 id="调用链的总结"><a href="#调用链的总结" class="headerlink" title="调用链的总结"></a>调用链的总结</h4><p>这幅图应该到处都有看到</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A84.png" alt="image-类的本质"></p>
+<ul>
+<li>instance的isa指向class</li>
+<li>class的isa指向meta-class</li>
+<li>meta-class的isa指向基类的meta-class</li>
+<li>class的superclass指向父类的class</li>
+<li>如果没有父类，superclass指针为nil</li>
+<li>meta-class的superclass指向父类的meta-class</li>
+<li>基类的meta-class的superclass指向基类的class</li>
+<li>instance调用对象方法的轨迹：isa找到class，方法不存在，就通过superclass找父类</li>
+<li>class调用类方法的轨迹： isa找meta-class，方法不存在，就通过superclass找父类</li>
+</ul>
+<h4 id="Struct-objc-class"><a href="#Struct-objc-class" class="headerlink" title="Struct objc_class"></a>Struct objc_class</h4><p>总所周知，实例对象中的isa就是只想一个objc_class的结构体的指针,而类对象和实例对象也是一个objc_class的结构体。所以我们来看看源码</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A85.png" alt="image-类的本质"></p>
+<p>由于类对象和元类对象都是这个结构，所以他们是一模一样的，只不过各自部分都有一些变量为空，类如元类对象中的ivars。我们也可以通过这幅图来理解</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A86.png" alt="image-类的本质"></p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过这些，我们知道了对象和类对象还有元类对象的联系、结构、共同处还有不同处。也知道了isa指针的作用以及方法调用链。这会更有利于我们开发中理解一些问题，也知道了为什么iOS可以说万物皆对象，而且不是空口一说</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>编译速度优化实践</title>
     <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
@@ -799,61 +966,6 @@
 ]]></content>
       <categories>
         <category>逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>iOS中的内存分配</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
-<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
-
-<p> 以及</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
-
-<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
-<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
-<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
-<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
-<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
-<p>其实我们可以这么理解</p>
-<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
-<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
-<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
-<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
-<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
-
-<p>1&lt;&lt;4就是16，即16字节对齐</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
-]]></content>
-      <categories>
-        <category>原理分析</category>
       </categories>
   </entry>
 </search>

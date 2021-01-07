@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下  KVO KVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下  KVO的使用 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KVO和KVC">
+<meta property="og:url" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下  KVO KVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下  KVO的使用 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo1.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo2.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo3.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo4.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo5.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo6.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo7.png">
+<meta property="og:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo8.png">
+<meta property="article:published_time" content="2021-01-05T07:02:09.000Z">
+<meta property="article:modified_time" content="2021-01-05T08:25:28.023Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/kvo1.png">
+
+<link rel="canonical" href="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>KVO和KVC | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">13</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          KVO和KVC
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-01-05 15:02:09 / 修改时间：16:25:28" itemprop="dateCreated datePublished" datetime="2021-01-05T15:02:09+08:00">2021-01-05</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下</p>
+<h4 id="KVO"><a href="#KVO" class="headerlink" title="KVO"></a>KVO</h4><p>KVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下</p>
+<h6 id="KVO的使用"><a href="#KVO的使用" class="headerlink" title="KVO的使用"></a>KVO的使用</h6><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    &#x2F;&#x2F; Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 &#x3D; p1;</span><br><span class="line">    NSLog(@&quot;%p&quot;,p1);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)touchesBegan:(NSSet&lt;UITouch *&gt; *)touches withEvent:(UIEvent *)event &#123;</span><br><span class="line">    self.p1.age &#x3D; 20;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context</span><br><span class="line">&#123;</span><br><span class="line">    if ([keyPath  isEqual: @&quot;age&quot;]) &#123;</span><br><span class="line">        NSLog(@&quot;%p的new value &#x3D; %zd,old value &#x3D; %zd&quot;,object,[change[@&quot;new&quot;] integerValue] ,[change[@&quot;old&quot;] integerValue]);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>调用addobserver方法来监听哪个对象，由哪个对象监听。监听什么变量，以及一些options和context来传递参数</li>
+<li>在监听对象的上下文里调用observeValueForKeyPath来监听。通过对应的参数取值</li>
+</ol>
+<h6 id="KVO的探索"><a href="#KVO的探索" class="headerlink" title="KVO的探索"></a>KVO的探索</h6><p>当我再创建一个对象p2，同样的在改变p1的同时也改变p2的值，但是我不监听p2的改变。如预期一样，在观察函数中并没有收到p2改变的信息。</p>
+<p>尽管结果如我预期，但是我还是好奇，其实2个对象都只是执行了set方法，为什么一个会走监听一个不会走监听呢？基于之前说过一个是派生类，于是我决定打印一下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    &#x2F;&#x2F; Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 &#x3D; p1;</span><br><span class="line">    </span><br><span class="line">    Person *p2 &#x3D; [[Person alloc] init];</span><br><span class="line">    self.p2 &#x3D; p2;</span><br><span class="line"></span><br><span class="line">    NSLog(@&quot;p1的地址为%p,p2的地址为%p&quot;,p1, p2);</span><br><span class="line">    NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(p1.class), NSStringFromClass(p2.class));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo1.png" alt="KVO和KVC"></p>
+<p>但是并没有得到我想要的结果，但是因为之前获取内存那里用不同的api得到了不同结果，吸取教训。我用其他的api试试</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(object_getClass(p1)), NSStringFromClass(object_getClass(p2)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo2.png" alt="KVO和KVC"></p>
+<p>果然，p1在添加观察者之后他的类名变了。而且这个类显然不是由系统创建的，这个可以提前说一下，是runtime调用api动态创建的。另外，在前面一章我们知道对象的isa是指向类对象的。所以应该是创建了一个新类对象，然后改变了isa的指向。另外我们也说过，是通过isa去找类对象里的方法实现(因为调用的是setAge，是个对象方法)。所以我想分别再打印一下他们的imp</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">IMP imp1 &#x3D; [p1 methodForSelector:@selector(setAge:)];</span><br><span class="line">IMP imp2&#x3D; [p2 methodForSelector:@selector(setAge:)];</span><br><span class="line">NSLog(@&quot;p1的实现是%p，p2的实现是%p&quot;,imp1,imp2);</span><br></pre></td></tr></table></figure>
+
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo3.png" alt="KVO和KVC"></p>
+<p>结果大出意料，被监听的对象的imp也成了一个c语言函数，通过函数名很好理解，设了一个longlong类型并且通知，所以可以猜测得到如果监听到其他类型应该也有对应函数的实现。其实这一点我们可以搜索一下，我们可以直接在foundation框架通过关键字搜索。首先手动用clang手动编译并且链接Foundation，然后调用nm 命令来通过关键字ValueAndNotify来查找，结果如下<img src="/uncategorized/KVO%E5%92%8CKVC/kvo4.png" alt="KVO和KVC"></p>
+<p>所以我们也可以推算这个是看碟下菜，什么类型就调用对应的函数</p>
+<h6 id="派生类的内部探究"><a href="#派生类的内部探究" class="headerlink" title="派生类的内部探究"></a>派生类的内部探究</h6><p>另外，我想跟进一步看看这个派生类，所以就干脆利用runtime来打印所有的iv ars和方法名。结果总结成图是这个样子</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo5.png" alt="KVO和KVC"></p>
+<p>由于里面重写了class，所以就造成了我们开始调用class发现没有改变的事实，其实我猜测就是为了封装性，因为对于正在编写代码的你我来说，并不需要知道知道他是什么类，他有person类的一些特质，我们就把它当成person类。也方便我们做一些类型比较。</p>
+<h6 id="NSSetIntValueAndNotify的实现"><a href="#NSSetIntValueAndNotify的实现" class="headerlink" title="NSSetIntValueAndNotify的实现"></a>NSSetIntValueAndNotify的实现</h6><p>我们目前只知道了他变相Hook了原始方法为一个c语言的函数，但是我们还是想知道具体的实现。由于之前学过逆向，这个也不难，找到越狱机，导出sharecache，这里就有foudation的实现。通过ida来反汇编，可以通过汇编来看出一些端倪。这里就不具体展示，直接总结了</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo6.png" alt="KVO和KVC"></p>
+<p>大概就是这样，kvo对外的通知其实就是通过3句函数来实现的，在will和did之间完成赋值操作。外界就会收到observer的改变</p>
+<ul>
+<li>调用willChangeValueForKey:</li>
+<li>调用原来的setter实现</li>
+<li>调用didChangeValueForKey:</li>
+<li>didChangeValueForKey:内部会调用observer的observeValueForKeyPath:ofObject:change:context:方法</li>
+</ul>
+<h4 id="KVC"><a href="#KVC" class="headerlink" title="KVC"></a>KVC</h4><p>相对于KVO来说KVC就简单许多，KVC的全称是Key-Value Coding，俗称“键值编码”，可以通过一个key来访问(获取、设值)某个属性</p>
+<h6 id="KVC的使用"><a href="#KVC的使用" class="headerlink" title="KVC的使用"></a>KVC的使用</h6><figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="keyword">void</span>)setValue:(<span class="keyword">id</span>)value forKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="keyword">void</span>)setValue:(<span class="keyword">id</span>)value forKey:(<span class="built_in">NSString</span> *)key;</span><br><span class="line">- (<span class="keyword">id</span>)valueForKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="keyword">id</span>)valueForKey:(<span class="built_in">NSString</span> *)key;</span><br></pre></td></tr></table></figure>
+
+<h6 id="KVC的函数寻找途径"><a href="#KVC的函数寻找途径" class="headerlink" title="KVC的函数寻找途径"></a>KVC的函数寻找途径</h6><p>其实这个在kvc的官方文档就有写，就用图来表示</p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo7.png" alt="KVO和KVC"></p>
+<p><img src="/uncategorized/KVO%E5%92%8CKVC/kvo8.png" alt="KVO和KVC"></p>
+<h6 id="注意点"><a href="#注意点" class="headerlink" title="注意点"></a>注意点</h6><p>通过实践得知，我们就算不通过property的方式来生成成员变量，而是直接手动生成属性。尽管这样不会生成set,get方法。通过kvc去赋值成功之后也会触发kvo。因为我们之前说过,kvo的本质还是通过willchange 和didchange之间的组合来做的操作，kvc在做赋值时自己做了对应的实现。切不可把kvo直接等价于set变量的hook实现</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过一系列探究，我们知道了kvo的具体实现，以及派生类的内部，并且知道了kvo支持的数据类型。以及kvc的一些寻值路径。特别要记住一点，kvc会自动触发kvo,尽管没有set方法</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/uncategorized/KVO%E5%92%8CKVC/" title="KVO和KVC">http://qingheblog.online/uncategorized/KVO和KVC/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/" rel="prev" title="iOS中的内存分配">
+      <i class="fa fa-chevron-left"></i> iOS中的内存分配
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/" rel="next" title="类的本质">
+      类的本质 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#KVO"><span class="nav-number">2.</span> <span class="nav-text">KVO</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#KVO的使用"><span class="nav-number">2.0.1.</span> <span class="nav-text">KVO的使用</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#KVO的探索"><span class="nav-number">2.0.2.</span> <span class="nav-text">KVO的探索</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#派生类的内部探究"><span class="nav-number">2.0.3.</span> <span class="nav-text">派生类的内部探究</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#NSSetIntValueAndNotify的实现"><span class="nav-number">2.0.4.</span> <span class="nav-text">NSSetIntValueAndNotify的实现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#KVC"><span class="nav-number">3.</span> <span class="nav-text">KVC</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#KVC的使用"><span class="nav-number">3.0.1.</span> <span class="nav-text">KVC的使用</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#KVC的函数寻找途径"><span class="nav-number">3.0.2.</span> <span class="nav-text">KVC的函数寻找途径</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#注意点"><span class="nav-number">3.0.3.</span> <span class="nav-text">注意点</span></a></li></ol></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : '363eb998b6156b9f58b7f220d00526b5',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

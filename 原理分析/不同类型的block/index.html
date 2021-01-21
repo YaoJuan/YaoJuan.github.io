@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 在之前，打印过block的类型，显示是NSGlobalBlock，那么有没有其他类型的block呢，都是些什么类型呢。  block类型的区分 我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24">
+<meta property="og:type" content="article">
+<meta property="og:title" content="不同类型的block">
+<meta property="og:url" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 在之前，打印过block的类型，显示是NSGlobalBlock，那么有没有其他类型的block呢，都是些什么类型呢。  block类型的区分 我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block2.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block3.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block4.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block5.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block6.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block7.png">
+<meta property="article:published_time" content="2021-01-21T08:16:22.000Z">
+<meta property="article:modified_time" content="2021-01-21T08:17:11.513Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png">
+
+<link rel="canonical" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>不同类型的block | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">17</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          不同类型的block
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-01-21 16:16:22 / 修改时间：16:17:11" itemprop="dateCreated datePublished" datetime="2021-01-21T16:16:22+08:00">2021-01-21</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前，打印过block的类型，显示是<strong>NSGlobalBlock</strong>，那么有没有其他类型的block呢，都是些什么类型呢。</p>
+<h4 id="block类型的区分"><a href="#block类型的区分" class="headerlink" title="block类型的区分"></a>block类型的区分</h4><p>我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block3)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个static变量=%d"</span>,b);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">NSString</span> *class1 = <span class="built_in">NSStringFromClass</span>([block1 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class2 = <span class="built_in">NSStringFromClass</span>([block2 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class3 = <span class="built_in">NSStringFromClass</span>([block3 <span class="keyword">class</span>]);</span><br><span class="line">        </span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"block1=%@,block2=%@,block3=%@"</span>,class1,class2,class3);</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png" alt="不同类型的block1"></p>
+<p>发现除了访问了auto局部变量的是栈block，其他的都是全局block。但是先别急，我们对栈block处理一下。</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSString</span> *class4 = <span class="built_in">NSStringFromClass</span>([block4 <span class="keyword">class</span>]);</span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对栈blockcopy之后为%@"</span>,class4);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block2.png" alt="不同类型的block1"></p>
+<p>到目前，我们就知道了block原来区分为了3种,总结一下如下图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block3.png" alt="不同类型的block1"></p>
+<h4 id="block的copy"><a href="#block的copy" class="headerlink" title="block的copy"></a>block的copy</h4><p>在上一节中，我们发现不访问任何局部auto变量的就是全局block，关于这个不去再做研究，因为实际应用中这种block很少，而且也不会有什么内存歧义，不涉及到任何捕获变量的问题</p>
+<p>然后我们还发现对stackblock进行copy之后变成了mallocblock,那么对其他类型的block进行copy会有什么样的结果呢</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^globalBlockCopy)(<span class="keyword">void</span>) = [block1 <span class="keyword">copy</span>];</span><br><span class="line"><span class="keyword">void</span>(^mallocBlockCopyAgain)(<span class="keyword">void</span>) = [block4 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对全局blockcopy之后为%@,对堆block再次copy结果为%@"</span>,globalBlockCopy,mallocBlockCopyAgain);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block4.png" alt="不同类型的block1"></p>
+<p>所以对于类型来说没有影响，但是其实引用计数是有影响的，因为这是mrc。总结如图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block5.png" alt="不同类型的block1"></p>
+<h4 id="NSMallocBlock"><a href="#NSMallocBlock" class="headerlink" title="NSMallocBlock"></a><strong>NSMallocBlock</strong></h4><p>首先让我们回到ARC,毕竟我们的实际开发还是是在ARC的环境下的，只是暂时借助MRC让我们聚焦于本质。</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br></pre></td></tr></table></figure>
+
+<p>还是这段代码，在mrc下打印为stackblock,copy之后就变成mallocblock了。那么在ARC下是什么结果呢</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block6.png" alt="不同类型的block1"></p>
+<p>会发现就直接是一个堆block了。为什么会这样呢，是因为在ARC情况下，block被强引用的时候会被copy，所以变成了堆block。我们可以这样处理一下</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">    __<span class="keyword">weak</span> <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">    &#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个时候结果就会变成</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block7.png" alt="不同类型的block1"></p>
+<p>所以我们日常接触中，基本上接触的都是堆block。那么为什么我们定义block成员变量要用copy或者strong来修饰呢，其实也是这个原理。还有日常接触的gcd是什么block呢，其实也是堆block</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>让我们聚焦堆block，可以总结一下几点</p>
+<ul>
+<li><p>在ARC环境下，编译器会根据情况自动将栈上的block复制到堆上，比如以下情况</p>
+<ol>
+<li>block作为函数返回值时</li>
+<li>将block赋值给__strong指针时</li>
+<li>block作为Cocoa API中方法名含有usingBlock的方法参数时</li>
+<li>block作为GCD API的方法参数时</li>
+</ol>
+</li>
+<li><p>ARC下block属性的建议写法</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">@property</span> (<span class="keyword">strong</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br><span class="line"><span class="keyword">@property</span> (<span class="keyword">copy</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/" title="不同类型的block">http://qingheblog.online/原理分析/不同类型的block/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/" rel="prev" title="block的本质">
+      <i class="fa fa-chevron-left"></i> block的本质
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#block类型的区分"><span class="nav-number">2.</span> <span class="nav-text">block类型的区分</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#block的copy"><span class="nav-number">3.</span> <span class="nav-text">block的copy</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#NSMallocBlock"><span class="nav-number">4.</span> <span class="nav-text">NSMallocBlock</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#总结"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">17</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : 'd978409069a391dc0677b282d0c5e48d',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

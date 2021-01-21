@@ -1,6 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>AssociatedObject</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前看过对象和类对象的的结构之后，我们知道objc_class中有一个变量的内部变量是专门保存属性的，是一个property_list_t 的指针类型。这个理解起来很简单，就是装在了所有的成员变量。但是我们有用过标题AssociatedObject这个api来给分类添加成员变量。那么添加之后是不是也在这里呢。今天就基于这个来探究一下</p>
+<h4 id="API"><a href="#API" class="headerlink" title="API"></a>API</h4><p>因为分类底层结构的限制(后面单独说下分类的结构，本质也是结构体)，不能添加成员变量到分类中。但可以通过关联对象来间接实现</p>
+<ul>
+<li><p>添加关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_setAssociatedObject(id object, const void * key,</span><br><span class="line">                                id value, objc_AssociationPolicy policy)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>获得关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">id objc_getAssociatedObject(id object, const void * key)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>移除所有的关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_removeAssociatedObjects(id object)</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h6 id="AssociationPolicy"><a href="#AssociationPolicy" class="headerlink" title="AssociationPolicy"></a><strong>AssociationPolicy</strong></h6><p>其实对应的就是我们创建成员变量的一些关键字。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject1.png" alt="AssociatedObject"></p>
+<h4 id="源码管中窥豹"><a href="#源码管中窥豹" class="headerlink" title="源码管中窥豹"></a>源码管中窥豹</h4><p>我们直接看runtime的开源部分，找到对应的实现</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">objc_setAssociatedObject</span><span class="params">(id object, <span class="keyword">const</span> <span class="keyword">void</span> *key, id value, objc_AssociationPolicy policy)</span> </span>&#123;</span><br><span class="line">    _object_set_associative_reference(object, (<span class="keyword">void</span> *)key, value, policy);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span> _object_set_associative_reference(id object, <span class="keyword">void</span> *key, id value, <span class="keyword">uintptr_t</span> policy) &#123;</span><br><span class="line">    <span class="comment">// retain the new value (if any) outside the lock.</span></span><br><span class="line">    <span class="function">ObjcAssociation <span class="title">old_association</span><span class="params">(<span class="number">0</span>, nil)</span></span>;</span><br><span class="line">    id new_value = value ? acquireValue(value, policy) : nil;</span><br><span class="line">    &#123;</span><br><span class="line">        AssociationsManager manager;</span><br><span class="line">        <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">(manager.associations())</span></span>;</span><br><span class="line">        <span class="keyword">disguised_ptr_t</span> disguised_object = DISGUISE(object);</span><br><span class="line">        <span class="keyword">if</span> (new_value) &#123;</span><br><span class="line">            <span class="comment">// break any existing association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i != associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                <span class="comment">// secondary table exists</span></span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    j-&gt;second = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// create the new association (first time).</span></span><br><span class="line">                ObjectAssociationMap *refs = <span class="keyword">new</span> ObjectAssociationMap;</span><br><span class="line">                associations[disguised_object] = refs;</span><br><span class="line">                (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                object-&gt;setHasAssociatedObjects();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// setting the association to nil breaks the association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i !=  associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    refs-&gt;erase(j);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// release the old value (outside of the lock).</span></span><br><span class="line">    <span class="keyword">if</span> (old_association.hasValue()) ReleaseValue()(old_association);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AssociationsManager</span> &#123;</span></span><br><span class="line">    <span class="comment">// associative references: object pointer -&gt; PtrPtrHashMap.</span></span><br><span class="line">    <span class="keyword">static</span> AssociationsHashMap *_map;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    AssociationsManager()   &#123; AssociationsManagerLock.lock(); &#125;</span><br><span class="line">    ~AssociationsManager()  &#123; AssociationsManagerLock.unlock(); &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (_map == <span class="literal">NULL</span>)</span><br><span class="line">            _map = <span class="keyword">new</span> AssociationsHashMap();</span><br><span class="line">        <span class="keyword">return</span> *_map;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>尽管代码看起来很绕，但是我们可以看到其中第一步就是拿到一个mannager,然后拿到其中的一个变量。然后做了2次内层迭代找到对应的key赋值的。其实这里面就有几个关键的类</p>
+<ul>
+<li>AssociationsManager</li>
+<li>AssociationsHashMap</li>
+<li>ObjectAssociationMap</li>
+<li>ObjcAssociation</li>
+</ul>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject2.png" alt="AssociatedObject"></p>
+<p>其实看代码是能找出这之间的包含关系的<br><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject3.png" alt="AssociatedObject"></p>
+<p>同样的，取值也是通过这样的方式来取的。但是从源码的else我们可以注意到一点，当给一个AssociatedObject设为nil时，会执行erase操作。也就是清除这个关联对象</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>可以回到我们的问题，其实AssociatedObject的添加并不是添加到对应类对象的结构体成员变量中的，而且进程中，所有的关联对象被统一保存在mananger的一个hashmap中，然后通过对象地址取得对象的关联hashmap,再通过key从hashmap中拿到对应的Association,然后做处理</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Category的结构探究</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/Category%E7%9A%84%E7%BB%93%E6%9E%84%E6%8E%A2%E7%A9%B6/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前研究fishhook的时候有碰过一点点dyld加载的知识，当时惊鸿一瞥到了类的加载，也看到了分类的加载。只记得加载镜像之后的一些处理，大体对于分类还是有点迷迷糊糊，所以借着学习的机会走一次源码看看</p>
@@ -78,158 +122,6 @@
       </categories>
   </entry>
   <entry>
-    <title>AssociatedObject</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前看过对象和类对象的的结构之后，我们知道objc_class中有一个变量的内部变量是专门保存属性的，是一个property_list_t 的指针类型。这个理解起来很简单，就是装在了所有的成员变量。但是我们有用过标题AssociatedObject这个api来给分类添加成员变量。那么添加之后是不是也在这里呢。今天就基于这个来探究一下</p>
-<h4 id="API"><a href="#API" class="headerlink" title="API"></a>API</h4><p>因为分类底层结构的限制(后面单独说下分类的结构，本质也是结构体)，不能添加成员变量到分类中。但可以通过关联对象来间接实现</p>
-<ul>
-<li><p>添加关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_setAssociatedObject(id object, const void * key,</span><br><span class="line">                                id value, objc_AssociationPolicy policy)</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>获得关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">id objc_getAssociatedObject(id object, const void * key)</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>移除所有的关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_removeAssociatedObjects(id object)</span><br></pre></td></tr></table></figure>
-
-
-
-</li>
-</ul>
-<h6 id="AssociationPolicy"><a href="#AssociationPolicy" class="headerlink" title="AssociationPolicy"></a><strong>AssociationPolicy</strong></h6><p>其实对应的就是我们创建成员变量的一些关键字。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject1.png" alt="AssociatedObject"></p>
-<h4 id="源码管中窥豹"><a href="#源码管中窥豹" class="headerlink" title="源码管中窥豹"></a>源码管中窥豹</h4><p>我们直接看runtime的开源部分，找到对应的实现</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">objc_setAssociatedObject</span><span class="params">(id object, <span class="keyword">const</span> <span class="keyword">void</span> *key, id value, objc_AssociationPolicy policy)</span> </span>&#123;</span><br><span class="line">    _object_set_associative_reference(object, (<span class="keyword">void</span> *)key, value, policy);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span> _object_set_associative_reference(id object, <span class="keyword">void</span> *key, id value, <span class="keyword">uintptr_t</span> policy) &#123;</span><br><span class="line">    <span class="comment">// retain the new value (if any) outside the lock.</span></span><br><span class="line">    <span class="function">ObjcAssociation <span class="title">old_association</span><span class="params">(<span class="number">0</span>, nil)</span></span>;</span><br><span class="line">    id new_value = value ? acquireValue(value, policy) : nil;</span><br><span class="line">    &#123;</span><br><span class="line">        AssociationsManager manager;</span><br><span class="line">        <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">(manager.associations())</span></span>;</span><br><span class="line">        <span class="keyword">disguised_ptr_t</span> disguised_object = DISGUISE(object);</span><br><span class="line">        <span class="keyword">if</span> (new_value) &#123;</span><br><span class="line">            <span class="comment">// break any existing association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i != associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                <span class="comment">// secondary table exists</span></span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    j-&gt;second = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// create the new association (first time).</span></span><br><span class="line">                ObjectAssociationMap *refs = <span class="keyword">new</span> ObjectAssociationMap;</span><br><span class="line">                associations[disguised_object] = refs;</span><br><span class="line">                (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                object-&gt;setHasAssociatedObjects();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// setting the association to nil breaks the association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i !=  associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    refs-&gt;erase(j);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// release the old value (outside of the lock).</span></span><br><span class="line">    <span class="keyword">if</span> (old_association.hasValue()) ReleaseValue()(old_association);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AssociationsManager</span> &#123;</span></span><br><span class="line">    <span class="comment">// associative references: object pointer -&gt; PtrPtrHashMap.</span></span><br><span class="line">    <span class="keyword">static</span> AssociationsHashMap *_map;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    AssociationsManager()   &#123; AssociationsManagerLock.lock(); &#125;</span><br><span class="line">    ~AssociationsManager()  &#123; AssociationsManagerLock.unlock(); &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (_map == <span class="literal">NULL</span>)</span><br><span class="line">            _map = <span class="keyword">new</span> AssociationsHashMap();</span><br><span class="line">        <span class="keyword">return</span> *_map;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>尽管代码看起来很绕，但是我们可以看到其中第一步就是拿到一个mannager,然后拿到其中的一个变量。然后做了2次内层迭代找到对应的key赋值的。其实这里面就有几个关键的类</p>
-<ul>
-<li>AssociationsManager</li>
-<li>AssociationsHashMap</li>
-<li>ObjectAssociationMap</li>
-<li>ObjcAssociation</li>
-</ul>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject2.png" alt="AssociatedObject"></p>
-<p>其实看代码是能找出这之间的包含关系的<br><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject3.png" alt="AssociatedObject"></p>
-<p>同样的，取值也是通过这样的方式来取的。但是从源码的else我们可以注意到一点，当给一个AssociatedObject设为nil时，会执行erase操作。也就是清除这个关联对象</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>可以回到我们的问题，其实AssociatedObject的添加并不是添加到对应类对象的结构体成员变量中的，而且进程中，所有的关联对象被统一保存在mananger的一个hashmap中，然后通过对象地址取得对象的关联hashmap,再通过key从hashmap中拿到对应的Association,然后做处理</p>
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>NSThead和内核线程的转换</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
-<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
-<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
-<blockquote>
-<ol>
-<li>pthread 是什么</li>
-<li>NSThread 如何封装 pthread</li>
-</ol>
-</blockquote>
-<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
-<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
-<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
-<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
-<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
-<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
-<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
-
-<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
-<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
-<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
-<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
-<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
-<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>SwiftUI初体验</title>
-    <url>/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/</url>
-    <content><![CDATA[<h3 id="自我代码风格的历程"><a href="#自我代码风格的历程" class="headerlink" title="自我代码风格的历程"></a>自我代码风格的历程</h3><h6 id="Part1"><a href="#Part1" class="headerlink" title="Part1"></a>Part1</h6><p>​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>用到的MVVM+<a href="https://github.com/ReactiveX/RxSwift" target="_blank" rel="noopener">RxSwift</a>，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没有updateUI的代码,用户的操作改变了视图数据，自动刷新UI。不得不说，当时写完的代码自己看起来都觉得一目了然，特别舒服，连注释都不用写太多</p>
-<h6 id="Part2"><a href="#Part2" class="headerlink" title="Part2"></a>Part2</h6><p>​    <a href="https://developer.apple.com/videos/wwdc2019" target="_blank" rel="noopener"><strong>WWDC2019</strong></a>让我记忆犹新，苹果推出了2个框架<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>,和<a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a>,分别说说这两个东西</p>
-<blockquote>
-<ol>
-<li><a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a> 简单来说，这就是苹果自己的一个swift上的<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>框架，这不是苹果第一次把第三方的东西自己拿来实现了，例如之前很多的Xcode的插件，都被苹果自己实现了。看到这个消息是很开心的，因为对于国内开发者来说，swift都比较少。rxswift可以说是异类中的异类，不被接受。<a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a> 的出现，起码说明了苹果接下来要对这方面的大力推广以及肯定。这点在<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>中，得到了认证</li>
-<li><a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>  搬运一段官网的话。”SwiftUI is an innovative, exceptionally <strong>simple way</strong> to build user interfaces <strong>across all Apple platforms</strong> with the power of Swift. Build user interfaces for any Apple device using just one set of tools and APIs. With a <strong>declarative Swift syntax</strong> that’s easy to read and natural to write, SwiftUI works seamlessly with new Xcode design tools to keep your code and design perfectly in sync“ 概括来说，开发简单，跨平台,并且与以往命令式UI不同，采用了声明式UI的开发方式。具体后面再继续说</li>
-</ol>
-</blockquote>
-<h2 id="MVC"><a href="#MVC" class="headerlink" title="MVC"></a><a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a></h2><p>刚入门的时候写OC常用的写法，非常感谢自己当时入门看到的一个教程<a href="https://medium.com/@seabjackson/cs193p-developing-ios-11-apps-with-swift-lecture-2-notes-bad3318aedde" target="_blank" rel="noopener">CS193P</a>，让我在理解<a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a>的时候特别的深刻，在后续找工作中因为在这方面的理解也脱颖而出.BTW,<a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a>其实就是一种对代码进行结构分层的方法，毕竟把所有的类放在一个文件这并不优雅。接下来引用一下教程中的的图片来理解。</p>
-<p><img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/mvc.png" alt="mvc"></p>
-<p>上图中代表了3个模块之间的交互方式，不过在这之前，我想先分开说下3者的职责</p>
-<p><u><strong><em>代码分层的原则</em></strong></u></p>
-<ul>
-<li><strong>Model:</strong> The <strong>Model</strong> has to do with <strong>what</strong> your application does. It has nothing to do with how the app is displayed, or drawn on screen. 但是其实在我接触的大部分开发者来说，大家并不会在model中写处理逻辑的代码，只是做了一个简单的数据解析的接受层来用。这太可惜了</li>
-<li><strong>Controller:</strong>  The Controller has to do with <strong>how</strong> the <strong>Model</strong> is displayed, or presented on screen (UI Logic).可以理解为C是一个中间人，他负责那个model交付于哪个view，负责view和model的一种交互</li>
-<li><strong>View:</strong>  The <strong>Views</strong> are your <strong>Controller</strong>’s minions. These are the things the <strong>Controller</strong> is going to use to put things on the screen like buttons, labels, tables, etc. to display what is in the <strong>Model</strong>, and to get input from the user to update the <strong>Model.</strong> View就像个工具人，有点像我们硬件中的GPU,单纯做展示，拿到model之后就把这些数据展示到自身上</li>
-</ul>
-<p><u><strong><em>三者的交互</em></strong></u></p>
-<ul>
-<li><strong>View&amp;model</strong>： 如图中之间的黄线所示，这是不允许做任何交互的，这也是中间C的职责所在</li>
-<li><strong>Model&amp;Controller:</strong> 首先,model并不允许持有C,不允许接受任何C的状态。C单方面持有Model，对其进行操作和改变。当model自身发生改变，需要通知外界时，利用KVO&amp;Notification来进行告知</li>
-<li><strong>View&amp;Controller:</strong> C持有View,所以可以对View做一切操作。反过来，View并不允许持有C.但是它有着一些自己的交互方式。例如Target Action。这是Button的API，可以告诉target自己被点击了。从而做出对应的Action的响应。还有经典的tableView的delegate和source的api。都是View和controller的交互方式</li>
-</ul>
-<p>用一个音乐播放列表的的demo来解释这三者。首先controller会拿到10首歌曲(model)，给到view.于是view展示10条数据。但是当用户网上翻滚的时候，view滚到极限了，就会去问controller.我接下来该展示什么。于是C就找model拿更多的数据交付给View.形成整个闭环。可惜的是，大部分见到的oc开发者的model，只是个避免面向dictionary开发的数据层。</p>
-<h2 id="MVVM"><a href="#MVVM" class="headerlink" title="MVVM"></a><a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVVM</a></h2><p>随着业务的增加，MVC中的C越来越臃肿，为了给C减负，于是衍生出VM来接替一些C的工作，例如网络请求,数据缓存…等等，保证C只做交互和控制器的跳转。</p>
-<p>但是在这里我并不想说这种MVVM，我想聊聊FRP+MVVM,尽管在命令式UI中，这种方式让我们的代码依旧表现出尽可能的优雅并且可读性高。</p>
-<p>在这里model和View依旧做着和MVC同样的事情，不过让我们对ViewModel做一些改造</p>
-<p><img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/mvvm.png" alt="mvvm"></p>
-<p>​     我们拿单独的一个页面来说讲一下：对于一个页面的展示(View)来说。这个页面来的变化只会在页面初始化，网络数据加载，以及一些用户的操作会引起页面的变化。我们把思维稍微抽象化一点。我们把用户在这个页面停留的这一串时间想象成一个数组，把用户的所有的这些行为可以理解为这个时间段上事件流有序的元素。并且提前把每个元素要对应页面改变定义好，绑定在View上,所以只要当有这个时间发生时，页面就做出相应的反应。这个相应反应的过程就是响应式UI（Reactive）,但是如何把事件流的元素转换成UI所需要的数据呢。这里需要用到函数式编程的思想(Functional)，只不过以往的函数式的操作的元素是一些基本的数据类型.我们只需要抽象一下思想，把元素集合想象成事件流，把每个事件想象成元素</p>
-<p>​    这个转换的过程在那里做呢，这就是ViewModel的功能，如上图，我们在构建一个页面时，我们可以提前把所有会对UI造成影响的行为列出来，叫做Input,各种各样的Input分好类。组成Inputs,然后把UI所期待的反应的数据想象成对应的OutPuts。然后再在对应的ViewModel中去做转换。还是如上图中，可以把ViewModel理解成一个管道，进来的可能是水，在ViewModel中做了转换之后，可能是果汁，交给对应的subscriber。<br>​    <img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/code.png" alt="code"></p>
-<p>上图我很多年前写的一个做比赛投彩的项目，当时有一个页面的需求是展示出所有的比赛列表，并且可以做排序。在上面我们就可以把用户点击一个日期排序按钮作为input输入，然后过滤出没有比赛的，然后转换成tableView用的数据。然后交给VC绑定给tableview。这样做的好处是什么，首先避免了大量的异步编程，大量的回调和代码会影响我们的思维一直向前的逻辑。代码阅读性高,提前在写代码之前想好构思，这样写法可以让代码按照我们的思路来走，并且更好的做单元测试。</p>
-<h3 id="声明式UI"><a href="#声明式UI" class="headerlink" title="声明式UI"></a>声明式UI</h3><p>在过去的iOS的编程中，我们用到的都是命令式UI,在说到swiftui之前，想先聊聊声明式UI。那么什么是声明式UI</p>
-<p>想象我们要实现下面这个界面：</p>
-<p>打开开关就让下面的 label 显示 on，反之显示 off。如果我们要用非声明式的方式实现，即命令式，那么需要：</p>
-<ul>
-<li>创建一个 <code>UISwitch</code>，设置它的 change 事件 handler</li>
-<li>创建一个 <code>UILabel</code></li>
-<li>创建一个 <code>UIStackView</code>，设置方向为垂直</li>
-<li>将 1、2 创建的两个视图添加到 <code>UIStackView</code> 中</li>
-<li>change 事件触发时读取开关的当前状态，设置相应字符串到 label 中</li>
-</ul>
-<p>这样做面对一个状态，我们尚且能够正确处理，但随着应用日渐复杂，状态也越来越多并且错综复杂，状态变化的顺序甚至也能影响应用逻辑的正确性，因为我们对每个事件的处理都是对界面的增量修改。一旦前一个状态有错误，后面就会错上加错，接下来多线程混入，然后 boom，你的应用可能就 crash 了。</p>
-<p>声明式的意思就是让我们描述我们需要一个什么样的界面，而不是告诉计算机一步一步干什么。那么上面的例子用声明式就是这样：</p>
-<blockquote>
-<p>“我需要一个界面，它是一个 VStack（垂直布局），里面有一个开关，开关的值与 switchValue 的布尔值绑定，VStack 里接下来是一个 Text，它的值当 switchValue 为 true 时是 foo，否则是 bar”</p>
-</blockquote>
-<p>我们可以发现，全文没有命令，都是在描述界面是怎样的。<code>switchValue</code> 我们称之为 “The Source of Truth”，Toggle 的状态、Text 的文本内容都与它相绑定。状态变化时，界面按照先前描述的重新“渲染”即可得到状态绝对正确的界面。这正是声明式的优势所在，<strong>降低状态增加时界面维护的复杂度</strong>。</p>
-<h3 id="SwiftUI"><a href="#SwiftUI" class="headerlink" title="SwiftUI"></a><a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a></h3><p>   我个人每年都会看一下斯坦福的<a href="https://cs193p.sites.stanford.edu" target="_blank" rel="noopener">CS193P</a>来获取比较前沿而且专业的知识，这门课程真的值得一学。今年讲到了<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a> ,所以就跟着过了一遍。写完了几个assignments之后，前几年写mvvm+frp的感觉又回来了。而且这可是原生的mvvm，共同之处我就不再阐述，这里只是说一下额外的爽点</p>
-<ul>
-<li><strong>FRP的改变:</strong> 利用combine框架来代替SwiftUI,并且衍生出了很多语法糖,Property wrapper，类似@Published， @ObervedObject， @State, @Binding 等等之类的东西。在现在你如果View中的内容根据model的任何成员变量的改变而改变，那可太简单了。</li>
-</ul>
-<pre><code><figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">// 在viewModel中的model前加上@published，代表这个成员变量每次改动会发出信号</span></span><br><span class="line">@<span class="type">Published</span> <span class="keyword">private</span> <span class="keyword">var</span> memoryGame: <span class="type">MemoryGame</span>&lt;<span class="type">String</span>&gt; = <span class="type">EmojiMemoryGame</span>.createMemoryGame()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 在View中的viewModel前加上@ObservedObject，代表观察中这个变量内部发出的信号，然后自己会在合适的时机更新ui到最新的数据</span></span><br><span class="line">@<span class="type">ObservedObject</span> <span class="keyword">var</span> emojiMemoryGame = <span class="type">EmojiMemoryGame</span>()</span><br></pre></td></tr></table></figure></code></pre><ul>
-<li><p><strong>更轻量级的应用：</strong> 在SwiftUI中，所有的model应该都是结构体这个时候可以巧妙的利用stuct的<a href="https://medium.com/@marthin.pasaribu_72336/copy-on-write-cow-with-swift-ce6c6583de38" target="_blank" rel="noopener">COW</a>的机制，任何成员变量的改变都会触发信号流的刷新</p>
-</li>
-<li><p><strong>声明式UI:</strong> 在上上章MVVM的例子里，我们的代码依旧不可避免出命令式的代码，例如最起码的数据绑定，在声明式UI中，我们直接去View的文件中，可以直接看到页面的布局、元素、以及每个View上要绑定的数据，清晰明了</p>
-</li>
-</ul>
-<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>​     在写命令式UI的代码，有时候几个月不写的代码自己回头去找布局都需要打开视图层来查找。好像声明式ui再也不会有这样的痛苦，再也不用去做各种updateUI的代码，一切所见即所得。</p>
-<p>​    在爽完2周的swiftui之旅，真的感觉有点回不去了，不过等待swiftui的普及，还需要很长的路要走，希望那一天不会太远。接下来一段时间打算再看看flutter，然后再做一个对比，希望能再有所提升</p>
-]]></content>
-      <categories>
-        <category>swift</category>
-      </categories>
-  </entry>
-  <entry>
     <title>KVO和KVC</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下</p>
@@ -275,6 +167,47 @@
 <p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/kvo8.png" alt="KVO和KVC"></p>
 <h6 id="注意点"><a href="#注意点" class="headerlink" title="注意点"></a>注意点</h6><p>通过实践得知，我们就算不通过property的方式来生成成员变量，而是直接手动生成属性。尽管这样不会生成set,get方法。通过kvc去赋值成功之后也会触发kvo。因为我们之前说过,kvo的本质还是通过willchange 和didchange之间的组合来做的操作，kvc在做赋值时自己做了对应的实现。切不可把kvo直接等价于set变量的hook实现</p>
 <h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过一系列探究，我们知道了kvo的具体实现，以及派生类的内部，并且知道了kvo支持的数据类型。以及kvc的一些寻值路径。特别要记住一点，kvc会自动触发kvo,尽管没有set方法</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 ]]></content>
       <categories>
         <category>原理分析</category>
@@ -551,6 +484,73 @@
       </categories>
   </entry>
   <entry>
+    <title>SwiftUI初体验</title>
+    <url>/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/</url>
+    <content><![CDATA[<h3 id="自我代码风格的历程"><a href="#自我代码风格的历程" class="headerlink" title="自我代码风格的历程"></a>自我代码风格的历程</h3><h6 id="Part1"><a href="#Part1" class="headerlink" title="Part1"></a>Part1</h6><p>​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>用到的MVVM+<a href="https://github.com/ReactiveX/RxSwift" target="_blank" rel="noopener">RxSwift</a>，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没有updateUI的代码,用户的操作改变了视图数据，自动刷新UI。不得不说，当时写完的代码自己看起来都觉得一目了然，特别舒服，连注释都不用写太多</p>
+<h6 id="Part2"><a href="#Part2" class="headerlink" title="Part2"></a>Part2</h6><p>​    <a href="https://developer.apple.com/videos/wwdc2019" target="_blank" rel="noopener"><strong>WWDC2019</strong></a>让我记忆犹新，苹果推出了2个框架<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>,和<a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a>,分别说说这两个东西</p>
+<blockquote>
+<ol>
+<li><a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a> 简单来说，这就是苹果自己的一个swift上的<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>框架，这不是苹果第一次把第三方的东西自己拿来实现了，例如之前很多的Xcode的插件，都被苹果自己实现了。看到这个消息是很开心的，因为对于国内开发者来说，swift都比较少。rxswift可以说是异类中的异类，不被接受。<a href="https://developer.apple.com/documentation/combine" target="_blank" rel="noopener">Combine</a> 的出现，起码说明了苹果接下来要对这方面的大力推广以及肯定。这点在<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>中，得到了认证</li>
+<li><a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a>  搬运一段官网的话。”SwiftUI is an innovative, exceptionally <strong>simple way</strong> to build user interfaces <strong>across all Apple platforms</strong> with the power of Swift. Build user interfaces for any Apple device using just one set of tools and APIs. With a <strong>declarative Swift syntax</strong> that’s easy to read and natural to write, SwiftUI works seamlessly with new Xcode design tools to keep your code and design perfectly in sync“ 概括来说，开发简单，跨平台,并且与以往命令式UI不同，采用了声明式UI的开发方式。具体后面再继续说</li>
+</ol>
+</blockquote>
+<h2 id="MVC"><a href="#MVC" class="headerlink" title="MVC"></a><a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a></h2><p>刚入门的时候写OC常用的写法，非常感谢自己当时入门看到的一个教程<a href="https://medium.com/@seabjackson/cs193p-developing-ios-11-apps-with-swift-lecture-2-notes-bad3318aedde" target="_blank" rel="noopener">CS193P</a>，让我在理解<a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a>的时候特别的深刻，在后续找工作中因为在这方面的理解也脱颖而出.BTW,<a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVC</a>其实就是一种对代码进行结构分层的方法，毕竟把所有的类放在一个文件这并不优雅。接下来引用一下教程中的的图片来理解。</p>
+<p><img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/mvc.png" alt="mvc"></p>
+<p>上图中代表了3个模块之间的交互方式，不过在这之前，我想先分开说下3者的职责</p>
+<p><u><strong><em>代码分层的原则</em></strong></u></p>
+<ul>
+<li><strong>Model:</strong> The <strong>Model</strong> has to do with <strong>what</strong> your application does. It has nothing to do with how the app is displayed, or drawn on screen. 但是其实在我接触的大部分开发者来说，大家并不会在model中写处理逻辑的代码，只是做了一个简单的数据解析的接受层来用。这太可惜了</li>
+<li><strong>Controller:</strong>  The Controller has to do with <strong>how</strong> the <strong>Model</strong> is displayed, or presented on screen (UI Logic).可以理解为C是一个中间人，他负责那个model交付于哪个view，负责view和model的一种交互</li>
+<li><strong>View:</strong>  The <strong>Views</strong> are your <strong>Controller</strong>’s minions. These are the things the <strong>Controller</strong> is going to use to put things on the screen like buttons, labels, tables, etc. to display what is in the <strong>Model</strong>, and to get input from the user to update the <strong>Model.</strong> View就像个工具人，有点像我们硬件中的GPU,单纯做展示，拿到model之后就把这些数据展示到自身上</li>
+</ul>
+<p><u><strong><em>三者的交互</em></strong></u></p>
+<ul>
+<li><strong>View&amp;model</strong>： 如图中之间的黄线所示，这是不允许做任何交互的，这也是中间C的职责所在</li>
+<li><strong>Model&amp;Controller:</strong> 首先,model并不允许持有C,不允许接受任何C的状态。C单方面持有Model，对其进行操作和改变。当model自身发生改变，需要通知外界时，利用KVO&amp;Notification来进行告知</li>
+<li><strong>View&amp;Controller:</strong> C持有View,所以可以对View做一切操作。反过来，View并不允许持有C.但是它有着一些自己的交互方式。例如Target Action。这是Button的API，可以告诉target自己被点击了。从而做出对应的Action的响应。还有经典的tableView的delegate和source的api。都是View和controller的交互方式</li>
+</ul>
+<p>用一个音乐播放列表的的demo来解释这三者。首先controller会拿到10首歌曲(model)，给到view.于是view展示10条数据。但是当用户网上翻滚的时候，view滚到极限了，就会去问controller.我接下来该展示什么。于是C就找model拿更多的数据交付给View.形成整个闭环。可惜的是，大部分见到的oc开发者的model，只是个避免面向dictionary开发的数据层。</p>
+<h2 id="MVVM"><a href="#MVVM" class="headerlink" title="MVVM"></a><a href="https://zh.wikipedia.org/wiki/MVC" target="_blank" rel="noopener">MVVM</a></h2><p>随着业务的增加，MVC中的C越来越臃肿，为了给C减负，于是衍生出VM来接替一些C的工作，例如网络请求,数据缓存…等等，保证C只做交互和控制器的跳转。</p>
+<p>但是在这里我并不想说这种MVVM，我想聊聊FRP+MVVM,尽管在命令式UI中，这种方式让我们的代码依旧表现出尽可能的优雅并且可读性高。</p>
+<p>在这里model和View依旧做着和MVC同样的事情，不过让我们对ViewModel做一些改造</p>
+<p><img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/mvvm.png" alt="mvvm"></p>
+<p>​     我们拿单独的一个页面来说讲一下：对于一个页面的展示(View)来说。这个页面来的变化只会在页面初始化，网络数据加载，以及一些用户的操作会引起页面的变化。我们把思维稍微抽象化一点。我们把用户在这个页面停留的这一串时间想象成一个数组，把用户的所有的这些行为可以理解为这个时间段上事件流有序的元素。并且提前把每个元素要对应页面改变定义好，绑定在View上,所以只要当有这个时间发生时，页面就做出相应的反应。这个相应反应的过程就是响应式UI（Reactive）,但是如何把事件流的元素转换成UI所需要的数据呢。这里需要用到函数式编程的思想(Functional)，只不过以往的函数式的操作的元素是一些基本的数据类型.我们只需要抽象一下思想，把元素集合想象成事件流，把每个事件想象成元素</p>
+<p>​    这个转换的过程在那里做呢，这就是ViewModel的功能，如上图，我们在构建一个页面时，我们可以提前把所有会对UI造成影响的行为列出来，叫做Input,各种各样的Input分好类。组成Inputs,然后把UI所期待的反应的数据想象成对应的OutPuts。然后再在对应的ViewModel中去做转换。还是如上图中，可以把ViewModel理解成一个管道，进来的可能是水，在ViewModel中做了转换之后，可能是果汁，交给对应的subscriber。<br>​    <img src="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/code.png" alt="code"></p>
+<p>上图我很多年前写的一个做比赛投彩的项目，当时有一个页面的需求是展示出所有的比赛列表，并且可以做排序。在上面我们就可以把用户点击一个日期排序按钮作为input输入，然后过滤出没有比赛的，然后转换成tableView用的数据。然后交给VC绑定给tableview。这样做的好处是什么，首先避免了大量的异步编程，大量的回调和代码会影响我们的思维一直向前的逻辑。代码阅读性高,提前在写代码之前想好构思，这样写法可以让代码按照我们的思路来走，并且更好的做单元测试。</p>
+<h3 id="声明式UI"><a href="#声明式UI" class="headerlink" title="声明式UI"></a>声明式UI</h3><p>在过去的iOS的编程中，我们用到的都是命令式UI,在说到swiftui之前，想先聊聊声明式UI。那么什么是声明式UI</p>
+<p>想象我们要实现下面这个界面：</p>
+<p>打开开关就让下面的 label 显示 on，反之显示 off。如果我们要用非声明式的方式实现，即命令式，那么需要：</p>
+<ul>
+<li>创建一个 <code>UISwitch</code>，设置它的 change 事件 handler</li>
+<li>创建一个 <code>UILabel</code></li>
+<li>创建一个 <code>UIStackView</code>，设置方向为垂直</li>
+<li>将 1、2 创建的两个视图添加到 <code>UIStackView</code> 中</li>
+<li>change 事件触发时读取开关的当前状态，设置相应字符串到 label 中</li>
+</ul>
+<p>这样做面对一个状态，我们尚且能够正确处理，但随着应用日渐复杂，状态也越来越多并且错综复杂，状态变化的顺序甚至也能影响应用逻辑的正确性，因为我们对每个事件的处理都是对界面的增量修改。一旦前一个状态有错误，后面就会错上加错，接下来多线程混入，然后 boom，你的应用可能就 crash 了。</p>
+<p>声明式的意思就是让我们描述我们需要一个什么样的界面，而不是告诉计算机一步一步干什么。那么上面的例子用声明式就是这样：</p>
+<blockquote>
+<p>“我需要一个界面，它是一个 VStack（垂直布局），里面有一个开关，开关的值与 switchValue 的布尔值绑定，VStack 里接下来是一个 Text，它的值当 switchValue 为 true 时是 foo，否则是 bar”</p>
+</blockquote>
+<p>我们可以发现，全文没有命令，都是在描述界面是怎样的。<code>switchValue</code> 我们称之为 “The Source of Truth”，Toggle 的状态、Text 的文本内容都与它相绑定。状态变化时，界面按照先前描述的重新“渲染”即可得到状态绝对正确的界面。这正是声明式的优势所在，<strong>降低状态增加时界面维护的复杂度</strong>。</p>
+<h3 id="SwiftUI"><a href="#SwiftUI" class="headerlink" title="SwiftUI"></a><a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a></h3><p>   我个人每年都会看一下斯坦福的<a href="https://cs193p.sites.stanford.edu" target="_blank" rel="noopener">CS193P</a>来获取比较前沿而且专业的知识，这门课程真的值得一学。今年讲到了<a href="https://developer.apple.com/xcode/swiftui/" target="_blank" rel="noopener">SwiftUI</a> ,所以就跟着过了一遍。写完了几个assignments之后，前几年写mvvm+frp的感觉又回来了。而且这可是原生的mvvm，共同之处我就不再阐述，这里只是说一下额外的爽点</p>
+<ul>
+<li><strong>FRP的改变:</strong> 利用combine框架来代替SwiftUI,并且衍生出了很多语法糖,Property wrapper，类似@Published， @ObervedObject， @State, @Binding 等等之类的东西。在现在你如果View中的内容根据model的任何成员变量的改变而改变，那可太简单了。</li>
+</ul>
+<pre><code><figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">// 在viewModel中的model前加上@published，代表这个成员变量每次改动会发出信号</span></span><br><span class="line">@<span class="type">Published</span> <span class="keyword">private</span> <span class="keyword">var</span> memoryGame: <span class="type">MemoryGame</span>&lt;<span class="type">String</span>&gt; = <span class="type">EmojiMemoryGame</span>.createMemoryGame()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 在View中的viewModel前加上@ObservedObject，代表观察中这个变量内部发出的信号，然后自己会在合适的时机更新ui到最新的数据</span></span><br><span class="line">@<span class="type">ObservedObject</span> <span class="keyword">var</span> emojiMemoryGame = <span class="type">EmojiMemoryGame</span>()</span><br></pre></td></tr></table></figure></code></pre><ul>
+<li><p><strong>更轻量级的应用：</strong> 在SwiftUI中，所有的model应该都是结构体这个时候可以巧妙的利用stuct的<a href="https://medium.com/@marthin.pasaribu_72336/copy-on-write-cow-with-swift-ce6c6583de38" target="_blank" rel="noopener">COW</a>的机制，任何成员变量的改变都会触发信号流的刷新</p>
+</li>
+<li><p><strong>声明式UI:</strong> 在上上章MVVM的例子里，我们的代码依旧不可避免出命令式的代码，例如最起码的数据绑定，在声明式UI中，我们直接去View的文件中，可以直接看到页面的布局、元素、以及每个View上要绑定的数据，清晰明了</p>
+</li>
+</ul>
+<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>​     在写命令式UI的代码，有时候几个月不写的代码自己回头去找布局都需要打开视图层来查找。好像声明式ui再也不会有这样的痛苦，再也不用去做各种updateUI的代码，一切所见即所得。</p>
+<p>​    在爽完2周的swiftui之旅，真的感觉有点回不去了，不过等待swiftui的普及，还需要很长的路要走，希望那一天不会太远。接下来一段时间打算再看看flutter，然后再做一个对比，希望能再有所提升</p>
+]]></content>
+      <categories>
+        <category>swift</category>
+      </categories>
+  </entry>
+  <entry>
     <title>block的本质</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
     <content><![CDATA[<p>在之前做逆向的过程中有做过block的符号表还原，大概知道有堆block栈block的概念。然后最开始学oc的时候也记得有__block的关键字。不过时间久了也有点忘了，所以干脆梳理一下</p>
@@ -651,6 +651,61 @@
 ]]></content>
       <categories>
         <category>源码解读</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>不同类型的block</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前，打印过block的类型，显示是<strong>NSGlobalBlock</strong>，那么有没有其他类型的block呢，都是些什么类型呢。</p>
+<h4 id="block类型的区分"><a href="#block类型的区分" class="headerlink" title="block类型的区分"></a>block类型的区分</h4><p>我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block3)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个static变量=%d"</span>,b);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">NSString</span> *class1 = <span class="built_in">NSStringFromClass</span>([block1 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class2 = <span class="built_in">NSStringFromClass</span>([block2 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class3 = <span class="built_in">NSStringFromClass</span>([block3 <span class="keyword">class</span>]);</span><br><span class="line">        </span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"block1=%@,block2=%@,block3=%@"</span>,class1,class2,class3);</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png" alt="不同类型的block1"></p>
+<p>发现除了访问了auto局部变量的是栈block，其他的都是全局block。但是先别急，我们对栈block处理一下。</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSString</span> *class4 = <span class="built_in">NSStringFromClass</span>([block4 <span class="keyword">class</span>]);</span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对栈blockcopy之后为%@"</span>,class4);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block2.png" alt="不同类型的block1"></p>
+<p>到目前，我们就知道了block原来区分为了3种,总结一下如下图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block3.png" alt="不同类型的block1"></p>
+<h4 id="block的copy"><a href="#block的copy" class="headerlink" title="block的copy"></a>block的copy</h4><p>在上一节中，我们发现不访问任何局部auto变量的就是全局block，关于这个不去再做研究，因为实际应用中这种block很少，而且也不会有什么内存歧义，不涉及到任何捕获变量的问题</p>
+<p>然后我们还发现对stackblock进行copy之后变成了mallocblock,那么对其他类型的block进行copy会有什么样的结果呢</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^globalBlockCopy)(<span class="keyword">void</span>) = [block1 <span class="keyword">copy</span>];</span><br><span class="line"><span class="keyword">void</span>(^mallocBlockCopyAgain)(<span class="keyword">void</span>) = [block4 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对全局blockcopy之后为%@,对堆block再次copy结果为%@"</span>,globalBlockCopy,mallocBlockCopyAgain);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block4.png" alt="不同类型的block1"></p>
+<p>所以对于类型来说没有影响，但是其实引用计数是有影响的，因为这是mrc。总结如图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block5.png" alt="不同类型的block1"></p>
+<h4 id="NSMallocBlock"><a href="#NSMallocBlock" class="headerlink" title="NSMallocBlock"></a><strong>NSMallocBlock</strong></h4><p>首先让我们回到ARC,毕竟我们的实际开发还是是在ARC的环境下的，只是暂时借助MRC让我们聚焦于本质。</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br></pre></td></tr></table></figure>
+
+<p>还是这段代码，在mrc下打印为stackblock,copy之后就变成mallocblock了。那么在ARC下是什么结果呢</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block6.png" alt="不同类型的block1"></p>
+<p>会发现就直接是一个堆block了。为什么会这样呢，是因为在ARC情况下，block被强引用的时候会被copy，所以变成了堆block。我们可以这样处理一下</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">    __<span class="keyword">weak</span> <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">    &#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个时候结果就会变成</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block7.png" alt="不同类型的block1"></p>
+<p>所以我们日常接触中，基本上接触的都是堆block。那么为什么我们定义block成员变量要用copy或者strong来修饰呢，其实也是这个原理。还有日常接触的gcd是什么block呢，其实也是堆block</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>让我们聚焦堆block，可以总结一下几点</p>
+<ul>
+<li><p>在ARC环境下，编译器会根据情况自动将栈上的block复制到堆上，比如以下情况</p>
+<ol>
+<li>block作为函数返回值时</li>
+<li>将block赋值给__strong指针时</li>
+<li>block作为Cocoa API中方法名含有usingBlock的方法参数时</li>
+<li>block作为GCD API的方法参数时</li>
+</ol>
+</li>
+<li><p>ARC下block属性的建议写法</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">@property</span> (<span class="keyword">strong</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br><span class="line"><span class="keyword">@property</span> (<span class="keyword">copy</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+]]></content>
+      <categories>
+        <category>原理分析</category>
       </categories>
   </entry>
   <entry>
@@ -999,49 +1054,6 @@
       </categories>
   </entry>
   <entry>
-    <title>逆向笔记一</title>
-    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
-<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
-<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
-<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
-</li>
-<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
-</li>
-<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
-<hr>
-</li>
-</ul>
-<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
-<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
-<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
-<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
-<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
-</ul>
-<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
-<ol>
-<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
-<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
-<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
-<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
-<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
-<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
-<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
-<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
-<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
-<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
-<li>写完之后做验证以及写好Tweak</li>
-</ol>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
-<ul>
-<li><input disabled type="checkbox"> </li>
-</ul>
-]]></content>
-      <categories>
-        <category>逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>类的本质</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在上一章中，我们大概说了下内存分配相关的知识,我们从中知道了对象中保存了一个结构体指针isa，这个结构体是什么呢，对象又是怎么调用方法的呢，所以基于isa我们做进一步的了解</p>
@@ -1150,6 +1162,49 @@
 ]]></content>
       <categories>
         <category>项目优化</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>逆向笔记一</title>
+    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
+<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
+<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
+<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
+</li>
+<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
+</li>
+<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
+<hr>
+</li>
+</ul>
+<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
+<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
+<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
+<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
+<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
+</ul>
+<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
+<ol>
+<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
+<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
+<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
+<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
+<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
+<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
+<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
+<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
+<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
+<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
+<li>写完之后做验证以及写好Tweak</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
+<ul>
+<li><input disabled type="checkbox"> </li>
+</ul>
+]]></content>
+      <categories>
+        <category>逆向</category>
       </categories>
   </entry>
 </search>

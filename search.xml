@@ -654,61 +654,6 @@
       </categories>
   </entry>
   <entry>
-    <title>不同类型的block</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前，打印过block的类型，显示是<strong>NSGlobalBlock</strong>，那么有没有其他类型的block呢，都是些什么类型呢。</p>
-<h4 id="block类型的区分"><a href="#block类型的区分" class="headerlink" title="block类型的区分"></a>block类型的区分</h4><p>我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block3)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个static变量=%d"</span>,b);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">NSString</span> *class1 = <span class="built_in">NSStringFromClass</span>([block1 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class2 = <span class="built_in">NSStringFromClass</span>([block2 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class3 = <span class="built_in">NSStringFromClass</span>([block3 <span class="keyword">class</span>]);</span><br><span class="line">        </span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"block1=%@,block2=%@,block3=%@"</span>,class1,class2,class3);</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>打印结果如下</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png" alt="不同类型的block1"></p>
-<p>发现除了访问了auto局部变量的是栈block，其他的都是全局block。但是先别急，我们对栈block处理一下。</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSString</span> *class4 = <span class="built_in">NSStringFromClass</span>([block4 <span class="keyword">class</span>]);</span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对栈blockcopy之后为%@"</span>,class4);</span><br></pre></td></tr></table></figure>
-
-<p>打印结果如下</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block2.png" alt="不同类型的block1"></p>
-<p>到目前，我们就知道了block原来区分为了3种,总结一下如下图</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block3.png" alt="不同类型的block1"></p>
-<h4 id="block的copy"><a href="#block的copy" class="headerlink" title="block的copy"></a>block的copy</h4><p>在上一节中，我们发现不访问任何局部auto变量的就是全局block，关于这个不去再做研究，因为实际应用中这种block很少，而且也不会有什么内存歧义，不涉及到任何捕获变量的问题</p>
-<p>然后我们还发现对stackblock进行copy之后变成了mallocblock,那么对其他类型的block进行copy会有什么样的结果呢</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^globalBlockCopy)(<span class="keyword">void</span>) = [block1 <span class="keyword">copy</span>];</span><br><span class="line"><span class="keyword">void</span>(^mallocBlockCopyAgain)(<span class="keyword">void</span>) = [block4 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对全局blockcopy之后为%@,对堆block再次copy结果为%@"</span>,globalBlockCopy,mallocBlockCopyAgain);</span><br></pre></td></tr></table></figure>
-
-<p>打印结果如下</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block4.png" alt="不同类型的block1"></p>
-<p>所以对于类型来说没有影响，但是其实引用计数是有影响的，因为这是mrc。总结如图</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block5.png" alt="不同类型的block1"></p>
-<h4 id="NSMallocBlock"><a href="#NSMallocBlock" class="headerlink" title="NSMallocBlock"></a><strong>NSMallocBlock</strong></h4><p>首先让我们回到ARC,毕竟我们的实际开发还是是在ARC的环境下的，只是暂时借助MRC让我们聚焦于本质。</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br></pre></td></tr></table></figure>
-
-<p>还是这段代码，在mrc下打印为stackblock,copy之后就变成mallocblock了。那么在ARC下是什么结果呢</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block6.png" alt="不同类型的block1"></p>
-<p>会发现就直接是一个堆block了。为什么会这样呢，是因为在ARC情况下，block被强引用的时候会被copy，所以变成了堆block。我们可以这样处理一下</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">    __<span class="keyword">weak</span> <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">    &#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>这个时候结果就会变成</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block7.png" alt="不同类型的block1"></p>
-<p>所以我们日常接触中，基本上接触的都是堆block。那么为什么我们定义block成员变量要用copy或者strong来修饰呢，其实也是这个原理。还有日常接触的gcd是什么block呢，其实也是堆block</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>让我们聚焦堆block，可以总结一下几点</p>
-<ul>
-<li><p>在ARC环境下，编译器会根据情况自动将栈上的block复制到堆上，比如以下情况</p>
-<ol>
-<li>block作为函数返回值时</li>
-<li>将block赋值给__strong指针时</li>
-<li>block作为Cocoa API中方法名含有usingBlock的方法参数时</li>
-<li>block作为GCD API的方法参数时</li>
-</ol>
-</li>
-<li><p>ARC下block属性的建议写法</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">@property</span> (<span class="keyword">strong</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br><span class="line"><span class="keyword">@property</span> (<span class="keyword">copy</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br></pre></td></tr></table></figure>
-
-</li>
-</ul>
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>iOS中的内存分配</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
@@ -866,6 +811,142 @@
 ]]></content>
       <categories>
         <category>工作总结</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>__block修饰符</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8B%E5%88%92%E7%BA%BFblock%E4%BF%AE%E9%A5%B0%E7%AC%A6/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在block日常使用中，部分情况下不可避免的要修改捕获的外部变量的值，这个时候编译器会直接报错。并且提示我们要在变量前加上__block修饰符。那么为什么要这么做呢，加上之后做了什么事呢</p>
+<h4 id="block做了啥"><a href="#block做了啥" class="headerlink" title="__block做了啥"></a>__block做了啥</h4><p>首先我们定义一个demo如下，然后用clang编译成c++,这样有利于我们之前观察本质</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">        __block <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            a = <span class="number">4</span>;</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        block2();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line"></span><br><span class="line">        __attribute__((__blocks__(byref))) __Block_byref_a_0 a = &#123;(<span class="keyword">void</span>*)<span class="number">0</span>,(__Block_byref_a_0 *)&amp;a, <span class="number">0</span>, <span class="keyword">sizeof</span>(__Block_byref_a_0), <span class="number">2</span>&#125;;</span><br><span class="line">        <span class="keyword">void</span>(*block2)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, (__Block_byref_a_0 *)&amp;a, <span class="number">570425344</span>));</span><br><span class="line"></span><br><span class="line">        ((<span class="keyword">void</span> (*)(__block_impl *))((__block_impl *)block2)-&gt;FuncPtr)((__block_impl *)block2);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们从上面发现a =2这个变量被包装成了一个<em>__Block_byref_a_0</em>类型的东西，并且通过一个函数来创建了他。首先我们看下这个类型</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">Block_byref_a_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">void</span> *__isa;</span><br><span class="line">__Block_byref_a_0 *__forwarding;</span><br><span class="line"> <span class="keyword">int</span> __flags;</span><br><span class="line"> <span class="keyword">int</span> __size;</span><br><span class="line"> <span class="keyword">int</span> a;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// block的结构体</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  __Block_byref_a_0 *a; <span class="comment">// by ref</span></span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, __Block_byref_a_0 *_a, <span class="keyword">int</span> flags=<span class="number">0</span>) : a(_a-&gt;__forwarding) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到包装的这个类型也是个对象，并且其中包含了之前了定义的a,并且在初始化的时候传进来也是2。</p>
+<p>在创建这个包装的对象的时候传递了4个参数，0传给了isa,将自己的地址传递了给了自己的<em>__forwarding</em>,0传给了<em>flag</em>,自己的大小传递给了<em>__size</em>，而将2也保存到了同名的a中。</p>
+<p>而在block的自身结构体中也用同名的变量a来保存了这个包装后的结构体,然后再让我们看看对应函数的实现</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">// block内部的实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(struct __main_block_impl_0 *__cself) &#123;</span><br><span class="line">  __Block_byref_a_0 *a = __cself-&gt;a; <span class="comment">// bound by ref</span></span><br><span class="line"></span><br><span class="line">            (a-&gt;__forwarding-&gt;a) = <span class="number">4</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// block的desc的2个内存管理函数</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_copy_0(struct __main_block_impl_0*dst, struct __main_block_impl_0*src) &#123;_Block_object_assign((<span class="keyword">void</span>*)&amp;dst-&gt;a, (<span class="keyword">void</span>*)src-&gt;a, <span class="number">8</span><span class="comment">/*BLOCK_FIELD_IS_BYREF*/</span>);&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_dispose_0(struct __main_block_impl_0*src) &#123;_Block_object_dispose((<span class="keyword">void</span>*)src-&gt;a, <span class="number">8</span><span class="comment">/*BLOCK_FIELD_IS_BYREF*/</span>);&#125;</span><br></pre></td></tr></table></figure>
+
+<p>发现取值的时候也是通过block的a拿到包装的结构体，然后通过<em>__forwarding</em>指针拿到自身，因为这个时候自身可能已经在堆里了，然后再拿到a的变量做的对应操作。</p>
+<p>而发现之前我们了解过的内存管理的函数也对对应的包装的对象结构体做了内存管理</p>
+<p>所以我们可以总结成这个图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8B%E5%88%92%E7%BA%BFblock%E4%BF%AE%E9%A5%B0%E7%AC%A6/block%E4%BF%AE%E9%A5%B0%E7%AC%A61.png" alt="下划线block修饰符"></p>
+<h4 id="block修饰对象"><a href="#block修饰对象" class="headerlink" title="__block修饰对象"></a>__block修饰对象</h4><p>上面研究的都是基础数据类型，接下来我们看看对象</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">       __block Person *p = [[Person alloc] init];</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            p = [[Person alloc] init];</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        block2();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>转译成c++</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line"></span><br><span class="line">       __attribute__((__blocks__(byref))) __Block_byref_p_0 p = &#123;(<span class="keyword">void</span>*)<span class="number">0</span>,   (__Block_byref_p_0 *)&amp;p, <span class="number">33554432</span>, <span class="keyword">sizeof</span>(__Block_byref_p_0), __Block_byref_id_object_copy_131, __Block_byref_id_object_dispose_131, ((Person *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)((Person *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)objc_getClass(<span class="string">"Person"</span>), sel_registerName(<span class="string">"alloc"</span>)), sel_registerName(<span class="string">"init"</span>))&#125;;</span><br><span class="line">        <span class="keyword">void</span>(*block2)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, (__Block_byref_p_0 *)&amp;p, <span class="number">570425344</span>));</span><br><span class="line"></span><br><span class="line">        ((<span class="keyword">void</span> (*)(__block_impl *))((__block_impl *)block2)-&gt;FuncPtr)((__block_impl *)block2);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">Block_byref_p_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">void</span> *__isa;</span><br><span class="line">__Block_byref_p_0 *__forwarding;</span><br><span class="line"> <span class="keyword">int</span> __flags;</span><br><span class="line"> <span class="keyword">int</span> __size;</span><br><span class="line"> <span class="keyword">void</span> (*__Block_byref_id_object_copy)(<span class="keyword">void</span>*, <span class="keyword">void</span>*);</span><br><span class="line"> <span class="keyword">void</span> (*__Block_byref_id_object_dispose)(<span class="keyword">void</span>*);</span><br><span class="line"> Person *p;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>明显创建这个<em>__Block_byref_p_0</em>对象的构造方法复杂了很多，我们只关注与之前的不同点。多传了2个函数<em>_Block_byref_id_object_copy_131，</em><em>Block_byref_id_object_dispose_131</em>，最后一个参数是把p传了进去。看下对应的2个函数和实现</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __Block_byref_id_object_copy_131(<span class="keyword">void</span> *dst, <span class="keyword">void</span> *src) &#123;</span><br><span class="line"> _Block_object_assign((<span class="keyword">char</span>*)dst + <span class="number">40</span>, *(<span class="keyword">void</span> * *) ((<span class="keyword">char</span>*)src + <span class="number">40</span>), <span class="number">131</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __Block_byref_id_object_dispose_131(<span class="keyword">void</span> *src) &#123;</span><br><span class="line"> _Block_object_dispose(*(<span class="keyword">void</span> * *) ((<span class="keyword">char</span>*)src + <span class="number">40</span>), <span class="number">131</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>基本是上对一个基础地址的+40的地址做内存管理操作。其实这个就是在对<em>__Block_byref_p_0</em>内部的结构体变量做内存操作，例如上面的p,恰好偏移40的地址。所以这里就涉及了2层的内存管理，block自身对__block对象的管理，以及它自身对内部真正的同名捕获对象的管理</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>所有通过__block来修饰的变量都会被包装成一个对象，只不过会根据修饰的数据类型是普通类型还是对象类型，来额外生成对应的内存管理函数</p>
+<h6 id="block对变量的内存管理"><a href="#block对变量的内存管理" class="headerlink" title="block对变量的内存管理"></a>block对变量的内存管理</h6><ul>
+<li><p>当block拷贝到堆上时，都会通过copy函数来处理捕获的对象类型变量，__block只是一种特殊的对象变量类型</p>
+<ol>
+<li><p>__block变量（假设变量名叫做a）</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">_Block_object_assign((<span class="keyword">void</span>*)&amp;dst-&gt;a, (<span class="keyword">void</span>*)src-&gt;a, <span class="number">8</span><span class="comment">/*BLOCK_FIELD_IS_BYREF*/</span>);</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>对象类型的auto变量（假设变量名叫做p）</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">_Block_object_assign((<span class="keyword">void</span>*)&amp;dst-&gt;p, (<span class="keyword">void</span>*)src-&gt;p, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);</span><br></pre></td></tr></table></figure>
+</li>
+</ol>
+</li>
+<li><p>当block从堆上移除时，都会通过dispose函数来释放它们</p>
+<ol>
+<li><p>__block变量（假设变量名叫做a）</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">_Block_object_dispose((<span class="keyword">void</span>*)src-&gt;a, <span class="number">8</span><span class="comment">/*BLOCK_FIELD_IS_BYREF*/</span>);</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>对象类型的auto变量（假设变量名叫做p）</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">_Block_object_dispose((<span class="keyword">void</span>*)src-&gt;p, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);</span><br></pre></td></tr></table></figure>
+
+</li>
+</ol>
+</li>
+</ul>
+<h6 id="block对捕获的变量的内存管理"><a href="#block对捕获的变量的内存管理" class="headerlink" title="__block对捕获的变量的内存管理"></a>__block对捕获的变量的内存管理</h6><ul>
+<li>当__block变量被copy到堆时或者从堆中移除，如果是普通数据类型，并不需要做对内部的变量做任何内存管理</li>
+<li>当__block变量被copy到堆时，如果是对象类型<ol>
+<li>会调用__block变量内部的copy函数</li>
+<li>copy函数内部会调用_Block_object_assign函数，然后根据对应的地址偏移找到捕获的变量</li>
+<li>_Block_object_assign函数会根据所指向对象的修饰符（<strong>strong、</strong>weak、__unsafe_unretained）做出相应的操作，形成强引用（retain）或者弱引用（注意：这里仅限于ARC时会retain，MRC时不会retain）</li>
+</ol>
+</li>
+<li>当__block变量从堆上移除，如果是对象类型<ol>
+<li>会调用__block变量内部的dispose函数</li>
+<li>dispose函数内部会调用_Block_object_dispose函数</li>
+<li>_Block_object_dispose函数会自动释放指向的对象（release）</li>
+</ol>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实就是可以简单把__block变量理解为把捕获变量进行做了一层包裹的变量就行了。而且是同名，那么还有一点。当我们在加了修饰符之后访问这个变量到底是原来的那个变量，还是包裹的这个呢？直接打印一下就行</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">       __block Person *p = [[Person alloc] init];</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"block被调用%@"</span>,p);</span><br><span class="line">            p = [[Person alloc] init];</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@"block变量生成%@"</span>,p);</span><br><span class="line">        block2();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8B%E5%88%92%E7%BA%BFblock%E4%BF%AE%E9%A5%B0%E7%AC%A6/block%E4%BF%AE%E9%A5%B0%E7%AC%A62.png" alt="下划线block修饰符"></p>
+<p>其实访问的还是Person类型，其实这很好理解，毕竟编译器还是面向的是普通开发者，并没有必要在开发的时候把这些问题弄得过于复杂化。</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>不同类型的block</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前，打印过block的类型，显示是<strong>NSGlobalBlock</strong>，那么有没有其他类型的block呢，都是些什么类型呢。</p>
+<h4 id="block类型的区分"><a href="#block类型的区分" class="headerlink" title="block类型的区分"></a>block类型的区分</h4><p>我们可以按照自己的类型，然后来打印对应的class，但是在做这些之前，我们先把环境切换到MRC。然后写下demo里的代码</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line">        <span class="keyword">void</span>(^block3)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"访问了个static变量=%d"</span>,b);</span><br><span class="line">        &#125;;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">NSString</span> *class1 = <span class="built_in">NSStringFromClass</span>([block1 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class2 = <span class="built_in">NSStringFromClass</span>([block2 <span class="keyword">class</span>]);</span><br><span class="line">        <span class="built_in">NSString</span> *class3 = <span class="built_in">NSStringFromClass</span>([block3 <span class="keyword">class</span>]);</span><br><span class="line">        </span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"block1=%@,block2=%@,block3=%@"</span>,class1,class2,class3);</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block1.png" alt="不同类型的block1"></p>
+<p>发现除了访问了auto局部变量的是栈block，其他的都是全局block。但是先别急，我们对栈block处理一下。</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSString</span> *class4 = <span class="built_in">NSStringFromClass</span>([block4 <span class="keyword">class</span>]);</span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对栈blockcopy之后为%@"</span>,class4);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block2.png" alt="不同类型的block1"></p>
+<p>到目前，我们就知道了block原来区分为了3种,总结一下如下图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block3.png" alt="不同类型的block1"></p>
+<h4 id="block的copy"><a href="#block的copy" class="headerlink" title="block的copy"></a>block的copy</h4><p>在上一节中，我们发现不访问任何局部auto变量的就是全局block，关于这个不去再做研究，因为实际应用中这种block很少，而且也不会有什么内存歧义，不涉及到任何捕获变量的问题</p>
+<p>然后我们还发现对stackblock进行copy之后变成了mallocblock,那么对其他类型的block进行copy会有什么样的结果呢</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span>(^block1)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"不访问任何东西"</span>);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^block4)(<span class="keyword">void</span>) = [block2 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span>(^globalBlockCopy)(<span class="keyword">void</span>) = [block1 <span class="keyword">copy</span>];</span><br><span class="line"><span class="keyword">void</span>(^mallocBlockCopyAgain)(<span class="keyword">void</span>) = [block4 <span class="keyword">copy</span>];</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"对全局blockcopy之后为%@,对堆block再次copy结果为%@"</span>,globalBlockCopy,mallocBlockCopyAgain);</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block4.png" alt="不同类型的block1"></p>
+<p>所以对于类型来说没有影响，但是其实引用计数是有影响的，因为这是mrc。总结如图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block5.png" alt="不同类型的block1"></p>
+<h4 id="NSMallocBlock"><a href="#NSMallocBlock" class="headerlink" title="NSMallocBlock"></a><strong>NSMallocBlock</strong></h4><p>首先让我们回到ARC,毕竟我们的实际开发还是是在ARC的环境下的，只是暂时借助MRC让我们聚焦于本质。</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line"><span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br></pre></td></tr></table></figure>
+
+<p>还是这段代码，在mrc下打印为stackblock,copy之后就变成mallocblock了。那么在ARC下是什么结果呢</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block6.png" alt="不同类型的block1"></p>
+<p>会发现就直接是一个堆block了。为什么会这样呢，是因为在ARC情况下，block被强引用的时候会被copy，所以变成了堆block。我们可以这样处理一下</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    auto <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">    __<span class="keyword">weak</span> <span class="keyword">void</span>(^block2)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">        <span class="built_in">NSLog</span>(<span class="string">@"访问了个auto变量=%d"</span>,a);</span><br><span class="line">    &#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,block2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个时候结果就会变成</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block7.png" alt="不同类型的block1"></p>
+<p>所以我们日常接触中，基本上接触的都是堆block。那么为什么我们定义block成员变量要用copy或者strong来修饰呢，其实也是这个原理。还有日常接触的gcd是什么block呢，其实也是堆block</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>让我们聚焦堆block，可以总结一下几点</p>
+<ul>
+<li><p>在ARC环境下，编译器会根据情况自动将栈上的block复制到堆上，比如以下情况</p>
+<ol>
+<li>block作为函数返回值时</li>
+<li>将block赋值给__strong指针时</li>
+<li>block作为Cocoa API中方法名含有usingBlock的方法参数时</li>
+<li>block作为GCD API的方法参数时</li>
+</ol>
+</li>
+<li><p>ARC下block属性的建议写法</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">@property</span> (<span class="keyword">strong</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br><span class="line"><span class="keyword">@property</span> (<span class="keyword">copy</span>, <span class="keyword">nonatomic</span>) <span class="keyword">void</span> (^block)(<span class="keyword">void</span>);</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+]]></content>
+      <categories>
+        <category>原理分析</category>
       </categories>
   </entry>
   <entry>
@@ -1054,6 +1135,53 @@
       </categories>
   </entry>
   <entry>
+    <title>编译速度优化实践</title>
+    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
+<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
+<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
+<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
+</li>
+<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
+<blockquote>
+<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
+</blockquote>
+</li>
+</ul>
+<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
+<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
+<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
+<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
+<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
+<blockquote>
+<ol>
+<li>修改项目的build settings</li>
+<li>精简build phases</li>
+<li>调整源码</li>
+</ol>
+</blockquote>
+<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
+
+<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
+
+<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
+
+<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
+<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
+<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
+<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
+]]></content>
+      <categories>
+        <category>项目优化</category>
+      </categories>
+  </entry>
+  <entry>
     <title>类的本质</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在上一章中，我们大概说了下内存分配相关的知识,我们从中知道了对象中保存了一个结构体指针isa，这个结构体是什么呢，对象又是怎么调用方法的呢，所以基于isa我们做进一步的了解</p>
@@ -1115,53 +1243,6 @@
 ]]></content>
       <categories>
         <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>编译速度优化实践</title>
-    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
-<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
-<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
-<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
-</li>
-<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
-<blockquote>
-<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
-</blockquote>
-</li>
-</ul>
-<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
-<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
-<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
-<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
-<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
-<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
-<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
-<blockquote>
-<ol>
-<li>修改项目的build settings</li>
-<li>精简build phases</li>
-<li>调整源码</li>
-</ol>
-</blockquote>
-<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
-
-<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
-
-<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
-
-<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
-<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
-<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
-<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
-]]></content>
-      <categories>
-        <category>项目优化</category>
       </categories>
   </entry>
   <entry>

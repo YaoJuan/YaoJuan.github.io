@@ -123,7 +123,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">19</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">20</span></a>
 
   </li>
   </ul>
@@ -153,6 +153,85 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/isa%E8%AF%A6%E8%A7%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/isa%E8%AF%A6%E8%A7%A3/" class="post-title-link" itemprop="url">isa详解</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-02-18 15:57:23 / 修改时间：15:58:19" itemprop="dateCreated datePublished" datetime="2021-02-18T15:57:23+08:00">2021-02-18</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          前言
+在之前类的本质的时候说过，结构体中有一个成员变量isa,在arm64之前他是一个指针，指向了他的类对象。用来访问函数之类的作用。但是arm64之后类的地址需要通过isa与一个值来做一个位运算。按理说arm64比之前更加先进，为什么要这么处理呢
+
+共用体(union)和位域
+首先，要说的是，arm64之后的isa是优化过了的。可能会很纳闷，用起来比之前更麻烦了，为什么叫做优化了的。先让我们抛开这个问题，来想另外一个问题。我们知道BOOL类型占一个字节，每在一个类中定一个BOOL类型，都会额外消耗一个字节。一个字节有8位，其实BOOL就是1和0,完全可以直接用其中的任意1位来表示，就算去除符
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/isa%E8%AF%A6%E8%A7%A3/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -178,7 +257,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2021-02-03 17:52:16 / 修改时间：17:55:52" itemprop="dateCreated datePublished" datetime="2021-02-03T17:52:16+08:00">2021-02-03</time>
+              <time title="创建时间：2021-02-03 17:52:16 / 修改时间：17:56:33" itemprop="dateCreated datePublished" datetime="2021-02-03T17:52:16+08:00">2021-02-03</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -202,7 +281,6 @@
 
       
           前言
-前言
 在之前，我们有说过，oc所有的方法调用最终都是转成objc_msgSend来发送消息。但是具体objc_msgSend里会做什么，还是需要窥探一番。但是在这里之前，有两个数据结构需要了解一下，包装了一个方法method_t，和cache_t
 
 method_t
@@ -225,7 +303,7 @@ method_t是包装方法的结构体，包含了方法的实现imp,签名selector
 
 
 struct method_t {
-    S
+    SEL 
           <!--noindex-->
             <div class="post-button">
               <a class="btn" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/#more" rel="contents">
@@ -1012,102 +1090,6 @@ Objective-C中的对象，简称OC对象，主要可以分为3种
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.JPG">
-      <meta itemprop="name" content="青禾">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="遇见青禾">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/" class="post-title-link" itemprop="url">基本安全防护记录</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2020-12-21 15:48:26 / 修改时间：15:53:24" itemprop="dateCreated datePublished" datetime="2020-12-21T15:48:26+08:00">2020-12-21</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E9%80%86%E5%90%91/" itemprop="url" rel="index"><span itemprop="name">逆向</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          前言
-​ 最近准备做一些基础的安全防护的功能，从最基础的反调试、反动态库注入，到反防护代码之间的博弈。发现了解越深懂的越不足。但是还是对这些基本的工作做一个简单的记录
-
-基础的防护
- * 反调试
-   
-    * Ptrace
-      
-       1. 程序被Xcode安装直接闪退
-          
-          
-       2. 通过终端lldb附加失败
-          
-          
-       3. 用户可以正常启动
-          
-          
-      
-      1
-      
-      
-      ptrace (PT
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1179,7 +1161,7 @@ Objective-C中的对象，简称OC对象，主要可以分为3种
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-count">20</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

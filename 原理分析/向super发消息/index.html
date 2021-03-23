@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客  objc_msgSendSuper 首先验证下自己的猜想，建2个类，写出需要的代码。  1 2 3 4 5 6 7 8 9 10 11 12">
+<meta property="og:type" content="article">
+<meta property="og:title" content="向super发消息">
+<meta property="og:url" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客  objc_msgSendSuper 首先验证下自己的猜想，建2个类，写出需要的代码。  1 2 3 4 5 6 7 8 9 10 11 12">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF1.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF2.png">
+<meta property="article:published_time" content="2021-03-23T05:57:05.000Z">
+<meta property="article:modified_time" content="2021-03-23T05:58:26.550Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF1.png">
+
+<link rel="canonical" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>向super发消息 | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">21</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          向super发消息
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-03-23 13:57:05 / 修改时间：13:58:26" itemprop="dateCreated datePublished" datetime="2021-03-23T13:57:05+08:00">2021-03-23</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客</p>
+<h4 id="objc-msgSendSuper"><a href="#objc-msgSendSuper" class="headerlink" title="objc_msgSendSuper"></a>objc_msgSendSuper</h4><p>首先验证下自己的猜想，建2个类，写出需要的代码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">int main(int argc, const char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        </span><br><span class="line">        Girl *g &#x3D; [[Girl alloc] init];</span><br><span class="line">        [g test];</span><br><span class="line">    &#125;</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">@implementation Girl</span><br><span class="line">- (void)test &#123;</span><br><span class="line">    [super test];</span><br><span class="line">&#125;</span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF1.png" alt="向super发消息"></p>
+<p>果然不出所料，打印结果如下。为了弄清楚为什么，还是老办法，编译成c++。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> _I_Girl_test(Girl * self, SEL _cmd) &#123;</span><br><span class="line">    ((<span class="keyword">void</span> (*)(__rw_objc_super *, SEL))(<span class="keyword">void</span> *)objc_msgSendSuper)((__rw_objc_super)&#123;(id)self, (id)class_getSuperclass(objc_getClass(<span class="string">"Girl"</span>))&#125;, sel_registerName(<span class="string">"test"</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">rw_objc_super</span> &#123;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">object</span>;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">superClass</span>;</span> </span><br><span class="line">    __rw_objc_super(struct objc_object *o, struct objc_object *s) : object(o), superClass(s) &#123;&#125; </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>其实弄清楚了就是调用了objc_msgSendSuper函数，然后2个参数，第一个参数是一个__rw_objc_super的结构体，还有一个就是方法的sel。</p>
+<p>然后__rw_objc_super2个成员一个是自己当前的对象，另外一个是自己的父类对象。</p>
+<p>但是觉得还是不够清晰，所以还是去看下objc_msgSendSuper的源码，很不幸，汇编实现的。而且描述得也不是很清楚</p>
+<figure class="highlight llvm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ENTRY _objc_msgSendSuper</span><br><span class="line">UNWIND _objc_msgSendSuper, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">CacheLookup NORMAL        // calls imp <span class="keyword">or</span> objc_msgSend_uncached</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper</span><br></pre></td></tr></table></figure>
+
+<p>就看到取了16个字节放到x0和x16，注释说x0是真正的消息接收者。x16是类，其实这个x0就是上面的objcet也就是girl对象。然后x16类就是父类。然后去执行函数去了。另外可以在苹果的注释也可以看到</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Sends a message with a simple return value to the superclass of an instance of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param super A pointer to an \c objc_super data structure. Pass values identifying the</span></span><br><span class="line"><span class="comment"> *  context the message was sent to, including the instance of the class that is to receive the</span></span><br><span class="line"><span class="comment"> *  message and the superclass at which to start searching for the method implementation.</span></span><br><span class="line"><span class="comment"> * @param op A pointer of type SEL. Pass the selector of the method that will handle the message.</span></span><br><span class="line"><span class="comment"> * @param ...</span></span><br><span class="line"><span class="comment"> *   A variable argument list containing the arguments to the method.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The return value of the method identified by \e op.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @see objc_msgSend</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT id _Nullable</span><br><span class="line">objc_msgSendSuper(struct objc_super * _Nonnull super, SEL _Nonnull op, ...)</span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.0</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/// Specifies the superclass of an instance. </span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_super</span> &#123;</span></span><br><span class="line">    <span class="comment">/// Specifies an instance of a class.</span></span><br><span class="line">    __unsafe_unretained _Nonnull id receiver;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Specifies the particular superclass of the instance to message. </span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> !defined(__cplusplus)  &amp;&amp;  !__OBJC2__</span></span><br><span class="line">    <span class="comment">/* For compatibility with old objc-runtime.h header */</span></span><br><span class="line">    __unsafe_unretained _Nonnull Class <span class="class"><span class="keyword">class</span>;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">    __unsafe_unretained _Nonnull Class super_class;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* super_class is the first class to search */</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其实这个结构体的对象的第一个变量是消息接受者。然后第二个类只是说明到时候找imp的时候是从哪个类的实现开始找。</p>
+<p>另外要说一点的是oc所有的方法的本质都是转换成objc_msgSend来做的调用，然后固定有2个参数，第1个是消息接受者。也就是我们函数里敲出来的self。所以在刚入门iOS的时候理解成函数当前的对象和类是没问题的，但是本质这个self其实是默认参数消息接受者。第二个参数是_cmd，类型就是SEL类型。如果需要其他参数则是放到后续的寄存器存放的。</p>
+<p>所以我们也理解到了，调用super只不过是从父类去查找方法而已，然后消息接受者还是自己。</p>
+<h4 id="objc-msgSendSuper2"><a href="#objc-msgSendSuper2" class="headerlink" title="objc_msgSendSuper2"></a>objc_msgSendSuper2</h4><p>有一点要说明，用clang转换成c++并不是百分之百的准确，但是也足够帮我们了解底层了。例如上面调用super我们编译出来显示执行的是objc_msgSendSuper,但是事实其实有出入。我们直接打断点查看</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF2.png" alt="向super发消息"></p>
+<p>尽管是x86的汇编，我们依然也可看到，最后调用的是objc_msgSendSuper2。查看源码，还是汇编。</p>
+<figure class="highlight llvm"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">ENTRY _objc_msgSendSuper<span class="number">2</span></span><br><span class="line">UNWIND _objc_msgSendSuper<span class="number">2</span>, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">ldr    <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">16</span>, #SUPERCLASS]    // <span class="keyword">x</span><span class="number">16</span> = class-&gt;superclass</span><br><span class="line">CacheLookup NORMAL</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper<span class="number">2</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到只不过自己手动执行了一个superclass，然后赋值然后进行执行。可以借用非arm64的汇编看得更清楚</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/********************************************************************</span></span><br><span class="line"><span class="comment"> * id objc_msgSendSuper2(struct objc_super *super, SEL op, ...)</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * struct objc_super &#123;</span></span><br><span class="line"><span class="comment"> *     id receiver;</span></span><br><span class="line"><span class="comment"> *     Class cls;    // SUBCLASS of the class to search</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> ********************************************************************/</span></span><br><span class="line">    </span><br><span class="line">    ENTRY _objc_msgSendSuper2</span><br><span class="line">    MESSENGER_START</span><br><span class="line">    </span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    CacheLookup NORMAL</span><br><span class="line">    <span class="comment">// cache hit, IMP in r12, eq already set for nonstret forwarding</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_FAST</span><br><span class="line">    bx    r12            <span class="comment">// call imp</span></span><br><span class="line"></span><br><span class="line">    CacheLookup2 NORMAL</span><br><span class="line">    <span class="comment">// cache miss</span></span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_SLOW</span><br><span class="line">    b    __objc_msgSend_uncached</span><br><span class="line">    </span><br><span class="line">    END_ENTRY _objc_msgSendSuper2</span><br></pre></td></tr></table></figure>
+
+<p>结构体的第二个参数就是自己的class了，不过内部执行会取出superclass作为方法的搜索起始值。其实就是包装了一层。和我们之前理解的原理其实没有太大出入</p>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>我们基本理清了super 发送消息到底做了什么事，其实只用搞清楚函数内部的self其实是消息接受者就可以了。剩下就是弄清函数接受者是谁就一切很清晰明了</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/" title="向super发消息">http://qingheblog.online/原理分析/向super发消息/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/isa%E8%AF%A6%E8%A7%A3/" rel="prev" title="isa详解">
+      <i class="fa fa-chevron-left"></i> isa详解
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#objc-msgSendSuper"><span class="nav-number">2.</span> <span class="nav-text">objc_msgSendSuper</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#objc-msgSendSuper2"><span class="nav-number">3.</span> <span class="nav-text">objc_msgSendSuper2</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">4.</span> <span class="nav-text">最后</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">21</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : 'c66b78434afb25648e307ce0cc705d85',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

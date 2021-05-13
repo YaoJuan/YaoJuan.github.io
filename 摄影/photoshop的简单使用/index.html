@@ -22,23 +22,27 @@
     var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
   </script>
 
-  <meta name="description" content="前言 因为最近生活中有一些拍照需求，又觉得手机拍的不是那么好。所以一冲动入了相机的坑，在看了一大堆测评之后先买了个xs10 1680套机玩了玩，后面又由于需要拍人像(女朋友)，需要定焦大光圈，又入了个35 1.4。出去旅游的时候拍了不少，确实也出了一些不错的照片。但是都是靠量取胜，完全没有构图、色彩、以及一些其他参数的概念，而是靠着模特底子好以及数量还有大光圈取胜。总觉得这件事就和写代码一样，每次">
+  <meta name="description" content="前言 之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps  案例  * 背景都弄成白色                添加色相饱和度图层，自带一个蒙版，将饱和度调低至0，整体都是灰色，然后利用画笔工具将需要显示彩色的部分涂抹出来。如果需要反转直接按">
 <meta property="og:type" content="article">
-<meta property="og:title" content="摄影入门">
-<meta property="og:url" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/index.html">
+<meta property="og:title" content="photoshop的简单使用">
+<meta property="og:url" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/index.html">
 <meta property="og:site_name" content="遇见青禾">
-<meta property="og:description" content="前言 因为最近生活中有一些拍照需求，又觉得手机拍的不是那么好。所以一冲动入了相机的坑，在看了一大堆测评之后先买了个xs10 1680套机玩了玩，后面又由于需要拍人像(女朋友)，需要定焦大光圈，又入了个35 1.4。出去旅游的时候拍了不少，确实也出了一些不错的照片。但是都是靠量取胜，完全没有构图、色彩、以及一些其他参数的概念，而是靠着模特底子好以及数量还有大光圈取胜。总觉得这件事就和写代码一样，每次">
+<meta property="og:description" content="前言 之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps  案例  * 背景都弄成白色                添加色相饱和度图层，自带一个蒙版，将饱和度调低至0，整体都是灰色，然后利用画笔工具将需要显示彩色的部分涂抹出来。如果需要反转直接按">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A81.png">
-<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A82.png">
-<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A83.png">
-<meta property="article:published_time" content="2021-04-08T01:53:02.000Z">
-<meta property="article:modified_time" content="2021-04-08T03:15:43.419Z">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A83.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A84.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A85.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A86.png">
+<meta property="og:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A87.png">
+<meta property="article:published_time" content="2021-05-12T10:41:04.000Z">
+<meta property="article:modified_time" content="2021-05-12T10:49:38.954Z">
 <meta property="article:author" content="青禾">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A81.png">
+<meta name="twitter:image" content="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png">
 
-<link rel="canonical" href="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/">
+<link rel="canonical" href="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">
 
 
 <script id="page-configurations">
@@ -51,7 +55,7 @@
   };
 </script>
 
-  <title>摄影入门 | 遇见青禾</title>
+  <title>photoshop的简单使用 | 遇见青禾</title>
   
 
 
@@ -162,7 +166,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.JPG">
@@ -175,7 +179,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          摄影入门
+          photoshop的简单使用
         </h1>
 
         <div class="post-meta">
@@ -186,7 +190,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2021-04-08 09:53:02 / 修改时间：11:15:43" itemprop="dateCreated datePublished" datetime="2021-04-08T09:53:02+08:00">2021-04-08</time>
+              <time title="创建时间：2021-05-12 18:41:04 / 修改时间：18:49:38" itemprop="dateCreated datePublished" datetime="2021-05-12T18:41:04+08:00">2021-05-12</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -209,42 +213,46 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>因为最近生活中有一些拍照需求，又觉得手机拍的不是那么好。所以一冲动入了相机的坑，在看了一大堆测评之后先买了个xs10 1680套机玩了玩，后面又由于需要拍人像(女朋友)，需要定焦大光圈，又入了个35 1.4。出去旅游的时候拍了不少，确实也出了一些不错的照片。但是都是靠量取胜，完全没有构图、色彩、以及一些其他参数的概念，而是靠着模特底子好以及数量还有大光圈取胜。总觉得这件事就和写代码一样，每次按快门之前应该会有一些自己的思考，于是决定从头系统的学一学摄影这件事</p>
-<h4 id="成像原理"><a href="#成像原理" class="headerlink" title="成像原理"></a>成像原理</h4><p>虽然我买的是微单(听说这是后来的趋势)，但是也可以从<strong><em>单反的成像原理</em></strong>来说</p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A81.png" alt="摄影入门"></p>
-<p>本质来说，摄影就是把光信号最终通过一些元件来转化成电子信号保存起来当图片的过程，最终呈现的结果其实就是感光器按下快门这一刻所进的光。例如上图，在光线进入，通过反光板折射的目镜时，我们就可以通过取景器看到我们想拍的东西。但是这并不是最终我们得到的图片，因为在我们按下快门的一瞬间，只会发反光板抬起来，让光线传递到感光器，从而形成我们拍摄的图片。</p>
-<p><strong><em>微单（无反）的成像原理</em></strong></p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A82.png" alt="摄影入门"></p>
-<p>相对于来说单反来说，无反并没有反光板这个部件，取代的是ccd电子元件。没有反光板，所以叫无反相机。ccd相当于反光板来说，更加可靠和快速，并且这是机械部件到电子部件的跨越。从而因为有了ccd，也可以直接通过信号处理转化到显示屏上(屏幕取景器)上。</p>
-<h4 id="曝光的三要素"><a href="#曝光的三要素" class="headerlink" title="曝光的三要素"></a>曝光的三要素</h4><p>在之前我们说了，摄影的本质其实就是把这一刻进的光转化成图片的过程，所以这一刻的进光量就很关键，我们有个专业名词，叫做<strong><u>曝光</u></strong>，然后曝光又由3个很关键的三要素组成</p>
-<ul>
-<li><p><em>光圈</em>  : <a href="https://baike.baidu.com/item/光圈/94964?fr=aladdin" target="_blank" rel="noopener">光圈</a>是一个用来控制光线透过镜头，进入机身内感光面光量的装置,就可以理解为他管理着进光口的大小，越大，单位时间内获得的光就越多。 表示光圈大小用F数表示,例如我的1680的套头的光圈就是F4，而35 1.4镜头的光圈是F1.4,要注意的是F后面数字越大，进光量越小，是一个反比关系。</p>
-<blockquote>
-<p>光圈的作用在于决定镜头的进光量。在快门不变的情况下：</p>
-<p>F后面的数值越小，光圈越大，进光量越多，画面比较亮，焦平面越窄，主体背景虚化越大；</p>
-<p>F后面的数值越大，光圈越小，进光量越少，画面比较暗，焦平面越宽，主体前后越清晰。</p>
-</blockquote>
-<p>所以我们拍人文一般都是大光圈，虚化背景，突出人物</p>
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps</p>
+<h4 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h4><ul>
+<li><p><strong><em>背景都弄成白色</em></strong></p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png" alt="photoshop的简单使用"></p>
+<p>添加色相饱和度图层，自带一个蒙版，将饱和度调低至0，整体都是灰色，然后利用画笔工具将需要显示彩色的部分涂抹出来。如果需要反转直接按command + L</p>
 </li>
-<li><p><em>快门</em> : <a href="https://baike.baidu.com/item/快门/82245?fr=aladdin" target="_blank" rel="noopener">快门</a>（shutter）是摄像器材中用来控制光线照射感光元件时间的装置。他控制着单次快门下进光的时间，快门速度越快，越可以抓住极速的物体。反之越慢就会有一些光的残影和运动轨迹。这并不代表快门越快越好，快门的快慢都有不同的利用场景，例如慢快门就可以拿来记录晚上城市道路上的车水马龙，假设我们拍一辆车子，定了快门时间2s。我们就可以拍出这辆车2s内的灯光的运动轨迹</p>
-</li>
-<li><p><em>感光度</em> : <a href="https://baike.baidu.com/item/感光度/2577807?fr=aladdin" target="_blank" rel="noopener">感光度</a>，又称为ISO值，是衡量底片对于光的灵敏程度。光在经过光圈和快门控制后，最终要通过感光元件。这个程度也会影响着最终成像的结果,感光度越小，最终成像越细腻。反之噪点越大</p>
+<li><p><strong><em>抠图工具</em></strong>:假如如下图人物太黑，背景已经足够亮了，只需要处理人物。可以利用左侧选择对象选择工具将人物扣出来单独做处理，例如需要加亮度，就选择一个曲线图层，会自带一个蒙版。然后拉高对应的亮度，如果裤子不需要提亮，可以用画笔工具选择黑色，然后涂抹掉裤子部位。假如觉得亮度不够 Command + j 复制蒙版涂层</p>
 </li>
 </ul>
-<p>我们可以用一个简单的图来更加通俗的说明这件事</p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A83.png" alt="摄影入门"></p>
-<p>我们把单次打开水龙头和关闭水龙头这一组动作理解成按一次快门</p>
-<p>水管宽度理解成光圈，越宽，进水(光)量越多</p>
-<p>最终经过滤网(感光度)，拿到这次接到所有的水(光)。滤网越小(指的是孔)，水越细腻，越大杂质越多(燥点)</p>
-<h4 id="曝光补偿"><a href="#曝光补偿" class="headerlink" title="曝光补偿"></a>曝光补偿</h4><p>曝光补偿指的是一种描述，当我们在取景器看到图片亮度不够的时候，我们可以告诉相机当前曝光有所欠缺。</p>
-<p>当曝光补偿=0时，相机认为这样的曝光刚刚好，曝光补偿=-3时，相机认为这样的曝光欠曝三个单位。就会在最终成像上修正光的亮度</p>
-<h4 id="常用的三个档位"><a href="#常用的三个档位" class="headerlink" title="常用的三个档位"></a>常用的三个档位</h4><p>在相机上，有一个专门的拨盘来控制着拍摄的模式(档位)</p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png" alt="photoshop的简单使用"></p>
 <ul>
-<li><strong><em>手动</em></strong>  光圈快门感光度全部自己设定，适合非常老手的玩家，因为最终的进光量的3个参数都由自己控制，很容易过爆或者曝光不足</li>
-<li><strong><em>光圈优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制光圈，剩下让相机自己对应修正，例如光线不好，相机就会降低快门速度和提高iso。控制光圈就影响着最终的景深</li>
-<li><strong><em>快门优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制快门速度，剩下的让相机自己对应修正。控制快门速度影响着拍摄的时间，和成像的质量(是否有光的轨迹)</li>
+<li><strong><em>抠图加蒙版的使用2</em></strong>:  例如下图想营造一下电影里的感觉，可以通过降低背景的色相饱和度，然后增强人物的亮度来做处理。首先通过对象选择工具慢慢把人物扣出来，然后选择一个一个自然饱和度的图层，然后拉低饱和度。但是这个时候操作的是扣出来的人物，可以通过command+i进行蒙版反选，操作的就是整个背景了。然后合并图层，选择camera raw滤镜，选择颜色分级，把阴影部分往黄绿色调。然后用裁剪工具进行裁剪</li>
 </ul>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实这些是一些非常理论的知识，通过学了这些之后之前拍摄遇到的一些问题可算豁然开朗。然后最终成像的三要素曝光只是其中之一,还有<strong>对焦</strong>和<strong>构图</strong>。对焦打算先放一放，因为现在的相机的对焦都非常智能了，可能下一步需要学习的就是构图。</p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A83.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>色阶+阈值+黑白场</em></strong>：  例如下图中，选择色阶图层，会出现类似一个直方图，其中2个峰值大概横向坐标大概指向30和220左右，其实就是下图中对应的字和背景。但是不是纯黑和纯白。我们可以通过设置黑白场来做到想要的效果，分别用设置黑场的墨水笔去选中字体部分、用白场选择背景部分。就可以区分开了。也可以通过推动直方图中的黑白中间场3个标记来做到这件事。</p>
+<p> 也可以通过阈值蒙版来做这件事，做得更好，滑动阈值、达到自己想要的结果</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A84.png" alt="photoshop的简单使用"></p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A85.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>扣头发丝</em></strong>： 利用选择对象工具，然后点击选择并遮住，然后在右侧菜单栏点击视图选项，选择一个比较好区分的方式，例如叠加，然后先把大体轮廓选择出来。在最后选择头发丝细节的时候在左侧菜单选择<strong>调整边缘画笔工具</strong>，弄完之后选择输出到：新建带有图层蒙版的图层。 这个时候如果图片不够锐利的话头发就会出现白丝，这个时候就要去修复白丝</p>
+<p>利用<strong>剪切蒙版法</strong>，在刚才已经抠出来的头发丝的基础上。新建蒙版，右键创建剪切蒙版.然后利用吸管工具(option + 左键)吸取白色周围正常头发的发色，然后利用画笔来涂抹.如果觉得颜色不对也可以利用橡皮工具进行擦除。然后改变画笔的硬度和大小来调头发丝的细节</p>
+</li>
+<li><p><strong><em>通道法抠图</em></strong>: 适合扣半透明复杂的场景，例如下图中的扣树。选择通道，在三个通道中选择一个更加能够把树和天空区分开来的通道，然后复制该通道，然后对该通道进行操作，选择图像菜单-&gt;调整-&gt;色阶。然后利用上面色阶的知识，推动黑白场，来彻底区分开两者。分开后利用command+左键点击拷贝通道建立选区。然后回到图层中利用这个选区直接创建蒙版。然后就可以了。可以新建一个蒙版作为背景，然后按住option+delete来填充颜色看是否有抠好</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A86.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><strong><em>画笔工具</em></strong>: 画笔不仅仅可以简单拿来做涂抹，也可以利用画笔工具对图片进行内容补充，例如上图中的树木。我们可以利用飞鸟画笔在树中添加各种各样的鸟。需要什么样的画笔就去找对应的素材即可，例如雪花等等……然后利用画笔细节设置做出各种渐变、自然的景象。最后如果觉得不真实可以将对应的笔刷蒙版更改透明度、或者转换为智能对象然后在滤镜中做高斯模糊的效果(雪景)</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A87.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>图片合成</em></strong>: 文件-&gt;自动-&gt;photo merge, 适合用于我们一个画面拍不下，需要多张图连起来的时候的场景。当我们横向画面不够时，我们拍摄时最好用竖构图来拍。反之如果想竖直叠加就用横构图，因为这样的画面会更广</p>
+</li>
+<li><p><strong><em>给画面增加光晕</em></strong>: 滤镜-&gt;redgridentsofware-&gt;插件 做调整</p>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>总体来说，PS相对于LR来说更加专业，毕竟LR大部分功能在PS的camera raw滤镜中都有。所以就需要更多的储备知识，其实学了一段时间之后才发现这些都是工具，后期需要更多的是思路和审美。以后还是要多看图和景提高自己的储备。不然有工具也不知道怎么用</p>
 
     </div>
 
@@ -260,7 +268,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="http://qingheblog.online/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/" title="摄影入门">http://qingheblog.online/摄影/摄影入门/</a>
+    <a href="http://qingheblog.online/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/" title="photoshop的简单使用">http://qingheblog.online/摄影/photoshop的简单使用/</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -277,13 +285,10 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/" rel="prev" title="向super发消息">
-      <i class="fa fa-chevron-left"></i> 向super发消息
+    <a href="/%E6%91%84%E5%BD%B1/lightRoom%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/" rel="prev" title="lightRoom的简单使用">
+      <i class="fa fa-chevron-left"></i> lightRoom的简单使用
     </a></div>
-      <div class="post-nav-item">
-    <a href="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/" rel="next" title="二叉树的最大宽度">
-      二叉树的最大宽度 <i class="fa fa-chevron-right"></i>
-    </a></div>
+      <div class="post-nav-item"></div>
     </div>
       </footer>
     
@@ -343,7 +348,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#成像原理"><span class="nav-number">2.</span> <span class="nav-text">成像原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#曝光的三要素"><span class="nav-number">3.</span> <span class="nav-text">曝光的三要素</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#曝光补偿"><span class="nav-number">4.</span> <span class="nav-text">曝光补偿</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#常用的三个档位"><span class="nav-number">5.</span> <span class="nav-text">常用的三个档位</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">6.</span> <span class="nav-text">最后</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#案例"><span class="nav-number">2.</span> <span class="nav-text">案例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">3.</span> <span class="nav-text">最后</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -476,7 +481,7 @@ NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
       repo        : 'YaoJuan.github.io',
       owner       : 'YaoJuan',
       admin       : ['YaoJuan'],
-      id          : '0c41bdc58eced846a81906f46c09a02c',
+      id          : 'd5d18f7b7b2246edb28ea7ce36807d87',
         language: '',
       distractionFreeMode: true
     });

@@ -122,47 +122,6 @@
       </categories>
   </entry>
   <entry>
-    <title>NSThead和内核线程的转换</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
-<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
-<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
-<blockquote>
-<ol>
-<li>pthread 是什么</li>
-<li>NSThread 如何封装 pthread</li>
-</ol>
-</blockquote>
-<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
-<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
-<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
-<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
-<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
-<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
-<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
-
-<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
-<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
-<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
-<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
-<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
-<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>KVO和KVC</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下</p>
@@ -208,6 +167,47 @@
 <p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/kvo8.png" alt="KVO和KVC"></p>
 <h6 id="注意点"><a href="#注意点" class="headerlink" title="注意点"></a>注意点</h6><p>通过实践得知，我们就算不通过property的方式来生成成员变量，而是直接手动生成属性。尽管这样不会生成set,get方法。通过kvc去赋值成功之后也会触发kvo。因为我们之前说过,kvo的本质还是通过willchange 和didchange之间的组合来做的操作，kvc在做赋值时自己做了对应的实现。切不可把kvo直接等价于set变量的hook实现</p>
 <h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过一系列探究，我们知道了kvo的具体实现，以及派生类的内部，并且知道了kvo支持的数据类型。以及kvc的一些寻值路径。特别要记住一点，kvc会自动触发kvo,尽管没有set方法</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>NSThead和内核线程的转换</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>) start &#123;</span><br><span class="line">  <span class="keyword">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="keyword">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> *nsthreadLauncher(<span class="keyword">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;</span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="keyword">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
 ]]></content>
       <categories>
         <category>原理分析</category>
@@ -529,6 +529,66 @@
       </categories>
   </entry>
   <entry>
+    <title>block的本质</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
+    <content><![CDATA[<p>在之前做逆向的过程中有做过block的符号表还原，大概知道有堆block栈block的概念。然后最开始学oc的时候也记得有__block的关键字。不过时间久了也有点忘了，所以干脆梳理一下</p>
+<h4 id="block的底层结构"><a href="#block的底层结构" class="headerlink" title="block的底层结构"></a>block的底层结构</h4><p>首先我们可以定义一个block,然后调用class、superclass等方法来打印一下对应的结构</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void(^block)(void) &#x3D; ^(void)&#123;</span><br><span class="line">        NSLog(@&quot;do nothing&quot;);</span><br><span class="line">    &#125;;</span><br><span class="line">    NSLog(@&quot;class&#x3D;%@,spuerclass&#x3D;%@,super&amp;super&#x3D;%@&quot;,NSStringFromClass([block class]), NSStringFromClass([[block class] superclass]),NSStringFromClass([[[block class] superclass] superclass]));</span><br></pre></td></tr></table></figure>
+
+<p>打印结果如下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A81.png" alt="block的本质"></p>
+<p>明显最终继承自NSObject，所以说他是对象，一点问题都没有。至于他本来为什么是NSGlobalBlock，这个先不探究。后面再说</p>
+<p>另外，我们可以把这段代码用clang编译成c++，看看更加清晰的实现</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA));</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们发现我们之前定义的block其实就是这么一串代码。其实去掉类型转换的代码，可以理解为创建了这么一个简单的block的原始代码是这样的</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA))</span><br></pre></td></tr></table></figure>
+
+<p>看起来像去调用一个函数，然后传了2个参数。我们搜索一下__main_block_impl_0，然后发现了这个</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, <span class="keyword">int</span> flags=<span class="number">0</span>) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>很明显，之前创建block的函数就是调用的这个结构体的构造函数，然后分别找一下2个成员block的结构体实现</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> &#123;</span></span><br><span class="line">  <span class="keyword">void</span> *isa;</span><br><span class="line">  <span class="keyword">int</span> Flags;</span><br><span class="line">  <span class="keyword">int</span> Reserved;</span><br><span class="line">  <span class="keyword">void</span> *FuncPtr;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">size_t</span> reserved;</span><br><span class="line">  <span class="keyword">size_t</span> Block_size;</span><br><span class="line">&#125; __main_block_desc_0_DATA = &#123; <span class="number">0</span>, <span class="keyword">sizeof</span>(struct __main_block_impl_0)&#125;;</span><br><span class="line"><span class="comment">// 创建了结构体，第一个参数传了0，第二个参数是自己的大小</span></span><br></pre></td></tr></table></figure>
+
+<p>然后我们注意一下我们创建block时候的2个参数，其中一个<strong>main_block_desc_0_DATA在上面的代码已经找到了。还有</strong>main_block_func_0赋值给了block结构体中的__block_impl的FuncPtr。很明显这个结构体就是放的函数实现的一些相关信息，FuncPtr就是实现的函数地址的指针，找到这个func_o看看</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(<span class="keyword">struct</span> __main_block_impl_0 *__cself) &#123;</span><br><span class="line">            <span class="built_in">NSLog</span>((<span class="built_in">NSString</span> *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_b590d7_mi_0);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实到这里我们就可以用图稍微总结一下</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A82.png" alt="block的本质"></p>
+<p>通过这个isa我们也可以说明确实是一个对象，但是这是一个最简单的block，他只是做了简单的一句打印，连变量都没访问。我们将代码稍微复杂一点</p>
+<h4 id="block的变量捕获"><a href="#block的变量捕获" class="headerlink" title="block的变量捕获"></a>block的变量捕获</h4><p>最开始还是通过swift闭包的捕获列表了解到捕获这个词的，等熟悉了之后才觉得这个词非常准确。这次我们实现一个稍微复杂一点的block，我们分别定义了一个普通的局部变量，还有一个static的局部变量，还有一个全局变量，并且在block中访问他们</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">int globleC_ &#x3D; 5;</span><br><span class="line"></span><br><span class="line">int main(int argc, const char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        int a &#x3D; 2;</span><br><span class="line">        static int b &#x3D; 3;</span><br><span class="line">        </span><br><span class="line">        void(^block)(void) &#x3D; ^(void)&#123;</span><br><span class="line">            NSLog(@&quot;%d%d%d&quot;,a,b,globleC_);</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这次我们还是通过clang来编译一下</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, a, &amp;b));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>发现比之前多了2个参数，一个是a,一个是b的地址,c并没有传。然后我们看看对应的几个结构体，发现两个子结构体没有改变，只有block自身做了变动</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  <span class="keyword">int</span> a;</span><br><span class="line">  <span class="keyword">int</span> *b;</span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, <span class="keyword">int</span> _a, <span class="keyword">int</span> *_b, <span class="keyword">int</span> flags=<span class="number">0</span>) : a(_a), b(_b) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>很明显，多一个一个int a,以及一个int 的指针b。而且通过构造函数也知道是把外部的这2个值直接做了赋值。而全程没有看到c,然后再看下block内部实现的编译结果</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(struct __main_block_impl_0 *__cself) &#123;</span><br><span class="line">  <span class="keyword">int</span> a = __cself-&gt;a; <span class="comment">// bound by copy</span></span><br><span class="line">  <span class="keyword">int</span> *b = __cself-&gt;b; <span class="comment">// bound by copy</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">            NSLog((NSString *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_ef3981_mi_0,a,(*b),globleC_);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<p>明显通过block拿到了对应的2个值，然后调用了NSLog。而globleC_则是直接取的全局变量。</p>
+<p>唯一的不同一个捕获普通变量是传的值，而static传的是指针，其实对这个普通变量我们有另外一种专业的称呼，叫做auto变量。默认情况下，所有的局部变量都是auto局部变量。通过这个捕获关系，我们也可以总结如图</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A83.png" alt="block的本质"></p>
+<h4 id="block捕获对象"><a href="#block捕获对象" class="headerlink" title="block捕获对象"></a>block捕获对象</h4><p>在上面我们捕获的基础变量，这次我们试试对象类型</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        <span class="built_in">NSObject</span> *obj = [[<span class="built_in">NSObject</span> alloc] init];</span><br><span class="line">        <span class="keyword">void</span>(^block)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,obj)</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>编译成c++，结果如下，由于_block_impl_这个结构体没有改动，所以就不贴出来</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">// block本体结构体</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  NSObject *obj;</span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, NSObject *_obj, <span class="keyword">int</span> flags=<span class="number">0</span>) : obj(_obj) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">// block的函数具体实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(struct __main_block_impl_0 *__cself) &#123;</span><br><span class="line">  NSObject *obj = __cself-&gt;obj; <span class="comment">// bound by copy</span></span><br><span class="line"></span><br><span class="line">            NSLog((NSString *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_138f73_mi_0,obj);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// block中第二个结构体__main_block_desc_0的实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">size_t</span> reserved;</span><br><span class="line">  <span class="keyword">size_t</span> Block_size;</span><br><span class="line">  <span class="keyword">void</span> (*copy)(struct __main_block_impl_0*, struct __main_block_impl_0*);</span><br><span class="line">  <span class="keyword">void</span> (*dispose)(struct __main_block_impl_0*);</span><br><span class="line">&#125; __main_block_desc_0_DATA = &#123; <span class="number">0</span>, <span class="keyword">sizeof</span>(struct __main_block_impl_0), __main_block_copy_0, __main_block_dispose_0&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 上面这个结构体中的2个函数 copy 和dispose的实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_copy_0(struct __main_block_impl_0*dst, struct __main_block_impl_0*src) &#123;_Block_object_assign((<span class="keyword">void</span>*)&amp;dst-&gt;obj, (<span class="keyword">void</span>*)src-&gt;obj, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_dispose_0(struct __main_block_impl_0*src) &#123;_Block_object_dispose((<span class="keyword">void</span>*)src-&gt;obj, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">// main函数的实现</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        NSObject *obj = ((NSObject *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)((NSObject *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)objc_getClass(<span class="string">"NSObject"</span>), sel_registerName(<span class="string">"alloc"</span>)), sel_registerName(<span class="string">"init"</span>));</span><br><span class="line"></span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, obj, <span class="number">570425344</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以看到，在创建block的时候是直接把obj传递了进去，然后结构体内部也有一个NSObject *obj来接收，这点没有问题，因为obj默认是个auto NSObjcet *类型的auto变量，所以直接来接收。</p>
+<p>注意的是block中的desc结构体内部多了2个函数copy和dispose。而且在初始化结构体的时候把对应的实现传进去。而这两个函数内部分别调用的<em>_Block_object_assign*和</em>_Block_object_dispose*来做了对应的调用，而且这两个函数的参数都是结构体内部捕获的obj。</p>
+<p>很明显，从函数名就知道这是做内存管理的操作,因为这是在ARC。我们也可以总结出，对应对象变量来说和普通变量没什么区别，只不过会生成额外的函数来做内存管理</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过上面这些研究，我们可以大声说block本质上也是一个OC对象，它内部也有个isa指针，只不过是一个封装了函数调用以及函数调用环境的OC对象。可以更加全面的用这个图来表示</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A84.png" alt="block的本质"></p>
+<p>另外我们在创建最简单的block的时候发现他的类型是一个global的，那么他有没有其他类型呢。还有在block内部修改捕获变量会发生什么事呢？</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>SwiftUI初体验</title>
     <url>/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/</url>
     <content><![CDATA[<h3 id="自我代码风格的历程"><a href="#自我代码风格的历程" class="headerlink" title="自我代码风格的历程"></a>自我代码风格的历程</h3><h6 id="Part1"><a href="#Part1" class="headerlink" title="Part1"></a>Part1</h6><p>​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及<a href="https://en.wikipedia.org/wiki/Functional_reactive_programming" target="_blank" rel="noopener">FRP</a>用到的MVVM+<a href="https://github.com/ReactiveX/RxSwift" target="_blank" rel="noopener">RxSwift</a>，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没有updateUI的代码,用户的操作改变了视图数据，自动刷新UI。不得不说，当时写完的代码自己看起来都觉得一目了然，特别舒服，连注释都不用写太多</p>
@@ -596,66 +656,6 @@
       </categories>
   </entry>
   <entry>
-    <title>block的本质</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/</url>
-    <content><![CDATA[<p>在之前做逆向的过程中有做过block的符号表还原，大概知道有堆block栈block的概念。然后最开始学oc的时候也记得有__block的关键字。不过时间久了也有点忘了，所以干脆梳理一下</p>
-<h4 id="block的底层结构"><a href="#block的底层结构" class="headerlink" title="block的底层结构"></a>block的底层结构</h4><p>首先我们可以定义一个block,然后调用class、superclass等方法来打印一下对应的结构</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void(^block)(void) &#x3D; ^(void)&#123;</span><br><span class="line">        NSLog(@&quot;do nothing&quot;);</span><br><span class="line">    &#125;;</span><br><span class="line">    NSLog(@&quot;class&#x3D;%@,spuerclass&#x3D;%@,super&amp;super&#x3D;%@&quot;,NSStringFromClass([block class]), NSStringFromClass([[block class] superclass]),NSStringFromClass([[[block class] superclass] superclass]));</span><br></pre></td></tr></table></figure>
-
-<p>打印结果如下</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A81.png" alt="block的本质"></p>
-<p>明显最终继承自NSObject，所以说他是对象，一点问题都没有。至于他本来为什么是NSGlobalBlock，这个先不探究。后面再说</p>
-<p>另外，我们可以把这段代码用clang编译成c++，看看更加清晰的实现</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA));</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>我们发现我们之前定义的block其实就是这么一串代码。其实去掉类型转换的代码，可以理解为创建了这么一个简单的block的原始代码是这样的</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA))</span><br></pre></td></tr></table></figure>
-
-<p>看起来像去调用一个函数，然后传了2个参数。我们搜索一下__main_block_impl_0，然后发现了这个</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, <span class="keyword">int</span> flags=<span class="number">0</span>) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>很明显，之前创建block的函数就是调用的这个结构体的构造函数，然后分别找一下2个成员block的结构体实现</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> &#123;</span></span><br><span class="line">  <span class="keyword">void</span> *isa;</span><br><span class="line">  <span class="keyword">int</span> Flags;</span><br><span class="line">  <span class="keyword">int</span> Reserved;</span><br><span class="line">  <span class="keyword">void</span> *FuncPtr;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">size_t</span> reserved;</span><br><span class="line">  <span class="keyword">size_t</span> Block_size;</span><br><span class="line">&#125; __main_block_desc_0_DATA = &#123; <span class="number">0</span>, <span class="keyword">sizeof</span>(struct __main_block_impl_0)&#125;;</span><br><span class="line"><span class="comment">// 创建了结构体，第一个参数传了0，第二个参数是自己的大小</span></span><br></pre></td></tr></table></figure>
-
-<p>然后我们注意一下我们创建block时候的2个参数，其中一个<strong>main_block_desc_0_DATA在上面的代码已经找到了。还有</strong>main_block_func_0赋值给了block结构体中的__block_impl的FuncPtr。很明显这个结构体就是放的函数实现的一些相关信息，FuncPtr就是实现的函数地址的指针，找到这个func_o看看</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(<span class="keyword">struct</span> __main_block_impl_0 *__cself) &#123;</span><br><span class="line">            <span class="built_in">NSLog</span>((<span class="built_in">NSString</span> *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_b590d7_mi_0);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实到这里我们就可以用图稍微总结一下</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A82.png" alt="block的本质"></p>
-<p>通过这个isa我们也可以说明确实是一个对象，但是这是一个最简单的block，他只是做了简单的一句打印，连变量都没访问。我们将代码稍微复杂一点</p>
-<h4 id="block的变量捕获"><a href="#block的变量捕获" class="headerlink" title="block的变量捕获"></a>block的变量捕获</h4><p>最开始还是通过swift闭包的捕获列表了解到捕获这个词的，等熟悉了之后才觉得这个词非常准确。这次我们实现一个稍微复杂一点的block，我们分别定义了一个普通的局部变量，还有一个static的局部变量，还有一个全局变量，并且在block中访问他们</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">int globleC_ &#x3D; 5;</span><br><span class="line"></span><br><span class="line">int main(int argc, const char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        int a &#x3D; 2;</span><br><span class="line">        static int b &#x3D; 3;</span><br><span class="line">        </span><br><span class="line">        void(^block)(void) &#x3D; ^(void)&#123;</span><br><span class="line">            NSLog(@&quot;%d%d%d&quot;,a,b,globleC_);</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>这次我们还是通过clang来编译一下</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        <span class="keyword">int</span> a = <span class="number">2</span>;</span><br><span class="line">        <span class="keyword">static</span> <span class="keyword">int</span> b = <span class="number">3</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, a, &amp;b));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>发现比之前多了2个参数，一个是a,一个是b的地址,c并没有传。然后我们看看对应的几个结构体，发现两个子结构体没有改变，只有block自身做了变动</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  <span class="keyword">int</span> a;</span><br><span class="line">  <span class="keyword">int</span> *b;</span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, <span class="keyword">int</span> _a, <span class="keyword">int</span> *_b, <span class="keyword">int</span> flags=<span class="number">0</span>) : a(_a), b(_b) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>很明显，多一个一个int a,以及一个int 的指针b。而且通过构造函数也知道是把外部的这2个值直接做了赋值。而全程没有看到c,然后再看下block内部实现的编译结果</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(struct __main_block_impl_0 *__cself) &#123;</span><br><span class="line">  <span class="keyword">int</span> a = __cself-&gt;a; <span class="comment">// bound by copy</span></span><br><span class="line">  <span class="keyword">int</span> *b = __cself-&gt;b; <span class="comment">// bound by copy</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">            NSLog((NSString *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_ef3981_mi_0,a,(*b),globleC_);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
-
-<p>明显通过block拿到了对应的2个值，然后调用了NSLog。而globleC_则是直接取的全局变量。</p>
-<p>唯一的不同一个捕获普通变量是传的值，而static传的是指针，其实对这个普通变量我们有另外一种专业的称呼，叫做auto变量。默认情况下，所有的局部变量都是auto局部变量。通过这个捕获关系，我们也可以总结如图</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A83.png" alt="block的本质"></p>
-<h4 id="block捕获对象"><a href="#block捕获对象" class="headerlink" title="block捕获对象"></a>block捕获对象</h4><p>在上面我们捕获的基础变量，这次我们试试对象类型</p>
-<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="keyword">int</span> main(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[]) &#123;</span><br><span class="line">    <span class="keyword">@autoreleasepool</span> &#123;</span><br><span class="line">        <span class="built_in">NSObject</span> *obj = [[<span class="built_in">NSObject</span> alloc] init];</span><br><span class="line">        <span class="keyword">void</span>(^block)(<span class="keyword">void</span>) = ^(<span class="keyword">void</span>)&#123;</span><br><span class="line">            <span class="built_in">NSLog</span>(<span class="string">@"%@"</span>,obj)</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>编译成c++，结果如下，由于_block_impl_这个结构体没有改动，所以就不贴出来</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">// block本体结构体</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">main_block_impl_0</span> &#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">block_impl</span> <span class="title">impl</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span>* <span class="title">Desc</span>;</span></span><br><span class="line">  NSObject *obj;</span><br><span class="line">  __main_block_impl_0(<span class="keyword">void</span> *fp, struct __main_block_desc_0 *desc, NSObject *_obj, <span class="keyword">int</span> flags=<span class="number">0</span>) : obj(_obj) &#123;</span><br><span class="line">    impl.isa = &amp;_NSConcreteStackBlock;</span><br><span class="line">    impl.Flags = flags;</span><br><span class="line">    impl.FuncPtr = fp;</span><br><span class="line">    Desc = desc;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">// block的函数具体实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_func_0(struct __main_block_impl_0 *__cself) &#123;</span><br><span class="line">  NSObject *obj = __cself-&gt;obj; <span class="comment">// bound by copy</span></span><br><span class="line"></span><br><span class="line">            NSLog((NSString *)&amp;__NSConstantStringImpl__var_folders_p8_b47b91tx76z5kbh2cxh9d83r0000gn_T_main_138f73_mi_0,obj);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// block中第二个结构体__main_block_desc_0的实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> __<span class="title">main_block_desc_0</span> &#123;</span></span><br><span class="line">  <span class="keyword">size_t</span> reserved;</span><br><span class="line">  <span class="keyword">size_t</span> Block_size;</span><br><span class="line">  <span class="keyword">void</span> (*copy)(struct __main_block_impl_0*, struct __main_block_impl_0*);</span><br><span class="line">  <span class="keyword">void</span> (*dispose)(struct __main_block_impl_0*);</span><br><span class="line">&#125; __main_block_desc_0_DATA = &#123; <span class="number">0</span>, <span class="keyword">sizeof</span>(struct __main_block_impl_0), __main_block_copy_0, __main_block_dispose_0&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 上面这个结构体中的2个函数 copy 和dispose的实现</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_copy_0(struct __main_block_impl_0*dst, struct __main_block_impl_0*src) &#123;_Block_object_assign((<span class="keyword">void</span>*)&amp;dst-&gt;obj, (<span class="keyword">void</span>*)src-&gt;obj, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> __main_block_dispose_0(struct __main_block_impl_0*src) &#123;_Block_object_dispose((<span class="keyword">void</span>*)src-&gt;obj, <span class="number">3</span><span class="comment">/*BLOCK_FIELD_IS_OBJECT*/</span>);&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">// main函数的实现</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">const</span> <span class="keyword">char</span> * argv[])</span> </span>&#123;</span><br><span class="line">    <span class="comment">/* @autoreleasepool */</span> &#123; __AtAutoreleasePool __autoreleasepool; </span><br><span class="line">        NSObject *obj = ((NSObject *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)((NSObject *(*)(id, SEL))(<span class="keyword">void</span> *)objc_msgSend)((id)objc_getClass(<span class="string">"NSObject"</span>), sel_registerName(<span class="string">"alloc"</span>)), sel_registerName(<span class="string">"init"</span>));</span><br><span class="line"></span><br><span class="line">        <span class="keyword">void</span>(*block)(<span class="keyword">void</span>) = ((<span class="keyword">void</span> (*)())&amp;__main_block_impl_0((<span class="keyword">void</span> *)__main_block_func_0, &amp;__main_block_desc_0_DATA, obj, <span class="number">570425344</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>我们可以看到，在创建block的时候是直接把obj传递了进去，然后结构体内部也有一个NSObject *obj来接收，这点没有问题，因为obj默认是个auto NSObjcet *类型的auto变量，所以直接来接收。</p>
-<p>注意的是block中的desc结构体内部多了2个函数copy和dispose。而且在初始化结构体的时候把对应的实现传进去。而这两个函数内部分别调用的<em>_Block_object_assign*和</em>_Block_object_dispose*来做了对应的调用，而且这两个函数的参数都是结构体内部捕获的obj。</p>
-<p>很明显，从函数名就知道这是做内存管理的操作,因为这是在ARC。我们也可以总结出，对应对象变量来说和普通变量没什么区别，只不过会生成额外的函数来做内存管理</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过上面这些研究，我们可以大声说block本质上也是一个OC对象，它内部也有个isa指针，只不过是一个封装了函数调用以及函数调用环境的OC对象。可以更加全面的用这个图来表示</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/block%E7%9A%84%E6%9C%AC%E8%B4%A84.png" alt="block的本质"></p>
-<p>另外我们在创建最简单的block的时候发现他的类型是一个global的，那么他有没有其他类型呢。还有在block内部修改捕获变量会发生什么事呢？</p>
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>fishhook原理</title>
     <url>/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/</url>
     <content><![CDATA[<h3 id="fishhook简介"><a href="#fishhook简介" class="headerlink" title="fishhook简介"></a>fishhook简介</h3><p>fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是<strong>动态修改 C 语言函数实现</strong>。</p>
@@ -696,123 +696,6 @@
 ]]></content>
       <categories>
         <category>源码解读</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>iOS中的内存分配</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
-<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
-
-<p> 以及</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
-
-<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
-<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
-<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
-<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
-<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
-<p>其实我们可以这么理解</p>
-<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
-<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
-<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
-<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
-<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
-
-<p>1&lt;&lt;4就是16，即16字节对齐</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>iOS卡顿监控遇到的一些难题</title>
-    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
-<h3 id="一些思考"><a href="#一些思考" class="headerlink" title="一些思考"></a>一些思考</h3><p>其实我们希望我们的卡顿监控是这样的。</p>
-<blockquote>
-<p>1.可以看到卡顿的调用栈(基本) </p>
-<p>2.可以能看到一些页面的追踪，例如进入了xx页面，退到了后面，进入了前台…等等消息</p>
-<p>3.最好能带上一些自定义的信息。例如用户信息等</p>
-</blockquote>
-<p>其实这3点bugly的crash监控是有做到的，错误的跟踪也是有做到的。但是唯独只有卡顿监控只有单一的调用栈。找遍了所有的自定义interface。并没有提供类似的补充功能。(btw，我觉得这应该在实现上没有什么太大的麻烦)可能是大多数应用对卡顿的数据并不敏感。而大厂都有自己的apm平台。所以我们只能根据我们自己的需求做一些其他方向的思考。</p>
-<h3 id="进一步的调查"><a href="#进一步的调查" class="headerlink" title="进一步的调查"></a>进一步的调查</h3><p>进过上一步的思考，我们定位了自己的需求。但是对于我个人而言，还是希望能用一些现成的东西，在时间成本上比较划算（主要是自己懒）。所以最开始的想法是想换一下别家的sdk。所以有了下面的调查</p>
-<blockquote>
-<p>1.网易云捕快: 好像有类似的功能，但是不提供试用。公司应该也不会批准在这方面产品额外的费用。所以pass</p>
-<p>2.阿里的岳鹰: 新推出的产品，试过之后发现目前没有提供卡顿的监控，暂时不提供对外的自定义日志功能</p>
-<p>3.firebase: 不得不说这真的是做得很好的一个产品。各方面都很全面,展示得也非常清晰。可惜的是，也没有类似的卡顿功能</p>
-</blockquote>
-<p>在经历了这些之后，我们只能另辟蹊径。但是目前我们的时间和人力并不允许我们去做一个完善的apm(虽然我觉得这是很早就应该做的东西)。所以我们只能想其他方法。尽量低成本以及完善的办法</p>
-<h3 id="另辟蹊径"><a href="#另辟蹊径" class="headerlink" title="另辟蹊径"></a>另辟蹊径</h3><p>其实无论是以后自己做apm还是目前要想其他办法。卡顿的监控肯定是需要自己来实现了。只是上报到自己的apm后台还是第三方的后台的区别罢了。所以第一步就先实现自己的卡顿监控</p>
-<p>关于iOS的卡顿监控这一点网络上已经讨论烂了，并不是什么复杂的技术。但是我们的管理层还是要看bugly的数据，所以我们就按bugly的实现方式来仿写一遍好了。在bugly的文档上，我们有看到这一段</p>
-<blockquote>
-<h4 id="检查卡顿的依据和上报时机是什么"><a href="#检查卡顿的依据和上报时机是什么" class="headerlink" title="检查卡顿的依据和上报时机是什么?"></a>检查卡顿的依据和上报时机是什么?</h4><blockquote>
-<p>iOS 卡顿检查的依据是监控主线程 Runloop 的执行，观察执行耗时是否超过预定阀值(默认阀值为3000ms) 在监控到卡顿时会立即记录线程堆栈到本地，在App从后台切换到前台时，执行上报。</p>
-</blockquote>
-</blockquote>
-<p>所以我们就直接按这个仿写一个。用信号量来监控，间隔3s RunLoop无响应就代表产生的一次卡顿。在后续的测试中发现bugly的确是这样做的，尽管静态库看不到源码，但是我们还是能和bugly一样监测到同样的卡顿，并且拿到同样的函数调用栈，接下来就是后续的上报的问题了。也就是一开始我们需要解决的问题。</p>
-<h3 id="上报方案之一FireBase"><a href="#上报方案之一FireBase" class="headerlink" title="上报方案之一FireBase"></a>上报方案之一<a href="https://firebase.google.com" target="_blank" rel="noopener">FireBase</a></h3><p>尽管在之前我们调研firebase的时候有提到过。firebase并不支持卡顿的一些监控。但是他支持自定义的异常上报的sdk。</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Records an Exception Model described by an FIRExceptionModel object. The events are</span></span><br><span class="line"><span class="comment"> * grouped and displayed similarly to crashes. Keep in mind that this method can be expensive.</span></span><br><span class="line"><span class="comment"> * The total number of FIRExceptionModels that can be recorded during your app's life-cycle is</span></span><br><span class="line"><span class="comment"> * limited by a fixed-size circular buffer. If the buffer is overrun, the oldest data is dropped.</span></span><br><span class="line"><span class="comment"> * Exception Models are relayed to Crashlytics on a subsequent launch of your application.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param exceptionModel Instance of the FIRExceptionModel to be recorded</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (<span class="keyword">void</span>)recordExceptionModel:(FIRExceptionModel *)exceptionModel</span><br><span class="line">    NS_SWIFT_NAME(record(exceptionModel:));</span><br></pre></td></tr></table></figure>
-
-<p>其中这个exceptionModel的一些接口方法如下</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Creates an Exception Model model with the given required fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param name - typically the type of the Exception class</span></span><br><span class="line"><span class="comment"> * @param reason - the human-readable reason the issue occurred</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (instancetype)exceptionModelWithName:(NSString *)name</span><br><span class="line">                                reason:(NSString *)<span class="function">reason <span class="title">NS_SWIFT_UNAVAILABLE</span><span class="params">(<span class="string">""</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A list of Stack Frames that make up the stack trace. The order of the stack trace is top-first,</span></span><br><span class="line"><span class="comment"> * so typically the "main" function is the last element in this list.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">@property(nonatomic, copy) NSArray&lt;FIRStackFrame *&gt; *stackTrace;</span><br></pre></td></tr></table></figure>
-
-<p>提供了一个异常，以及原因。并且需要传入对应的调用栈帧。可以进一步进去看下这个<code>FIRStackFrame</code>这个类,发现他提供了一些并不简便的方法，需要上传的时候自己找到发生问题的文件。以及行数。</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initializes a symbolicated Stack Frame with the given required fields. Symbolicated</span></span><br><span class="line"><span class="comment"> * Stack Frames will appear in the Crashlytics dashboard as reported in these fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param symbol - The function or method name</span></span><br><span class="line"><span class="comment"> * @param file - the file where the exception occurred</span></span><br><span class="line"><span class="comment"> * @param line - the line number</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (instancetype)initWithSymbol:(NSString *)symbol file:(NSString *)file <span class="built_in">line</span>:(NSInteger)<span class="built_in">line</span>;</span><br></pre></td></tr></table></figure>
-
-<p>例如下面就是文档推荐的用法</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">FIRExceptionModel *model =</span><br><span class="line">    [FIRExceptionModel exceptionModelWithName:@<span class="string">"FooException"</span> reason:@<span class="string">"There was a foo."</span>];</span><br><span class="line">model.stackTrace = @[</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"makeError"</span> fileName:@<span class="string">"handler.js"</span> lineNumber:<span class="number">495</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"then"</span> fileName:@<span class="string">"routes.js"</span> lineNumber:<span class="number">102</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"main"</span> fileName:@<span class="string">"app.js"</span> lineNumber:<span class="number">12</span>],</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
-
-<p>很明显在我们发生卡顿的时候我们自己再去检索到对应的文件以及行数是不可行的。所以我们需要找找其他的方法,这里就不卖关子了，在读interface的时候，发现了一个这样的文件</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This class is used in conjunction with recordExceptionModel to record information about</span><br><span class="line"> * non-ObjC&#x2F;C++ exceptions. All information included here will be displayed in the Crashlytics UI,</span><br><span class="line"> * and can influence crash grouping. Be particularly careful with the use of the address property.</span><br><span class="line"> *If set, Crashlytics will attempt symbolication and could overwrite other properities in the</span><br><span class="line"> *process.</span><br><span class="line"> **&#x2F;</span><br><span class="line">@interface FIRStackFrame (Private)</span><br><span class="line"></span><br><span class="line">+ (instancetype)stackFrame;</span><br><span class="line">+ (instancetype)stackFrameWithAddress:(NSUInteger)address;</span><br></pre></td></tr></table></figure>
-
-<p>很明显，这个文件是私有的，而且注释中告诉我们要用address这个api时一定要小心。ok,我们当然知道要小心，这个太适合我们了。因为我们在做卡顿监控的时候我们已经可以拿到函数调用栈的栈帧。直接调用就可以了。</p>
-<p>最后的代码可能就是这个样子</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">NSMutableArray *callFrames = [NSMutableArray arrayWithCapacity:backtraceLength];</span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> k = <span class="number">0</span>; k &lt; backtraceLength; k++)&#123;</span><br><span class="line">    NSUInteger addr = backtraceBuffer[k];</span><br><span class="line">    FIRStackFrame *sf = [FIRStackFrame stackFrameWithAddress:addr];</span><br><span class="line">    [callFrames addObject:sf];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">FIRExceptionModel *exceptionModel = [FIRExceptionModel exceptionModelWithName:@<span class="string">"jank exception"</span> reason:@<span class="string">"main thread blocked"</span>];</span><br><span class="line">exceptionModel.stackTrace = callFrames;</span><br><span class="line">[[FIRCrashlytics crashlytics] recordExceptionModel:exceptionModel];</span><br></pre></td></tr></table></figure>
-
-<p>然后再配合<code>Firebase</code>自带的log功能，在一些生命周期(例如前后台切换，页面的加载)的地方做好log，这样我们就可以在监控到卡顿的同时可以了解到用户的一些使用踪迹了，方便我们debug。另外他还提供了<code>Add custom keys</code>的功能，这样我们也可以附带一些用户属性上去，比如用户id。等等之类的，都有助于我们定位问题。</p>
-<p>其实到这里这个方案就差不多结束了，在这点上<code>Firebase</code>做得真的很好，他会做好符号化并且归类。可能比较麻烦的是在集成以及处理符号表上传的时候。btw,在调查阿里的岳鹰sdk的时候，他们是说他们也有这个对应的sdk的，但是暂时不提供对外服务。真是可惜了</p>
-<h3 id="上报方案之二-Bugly"><a href="#上报方案之二-Bugly" class="headerlink" title="上报方案之二 Bugly"></a>上报方案之二 Bugly</h3><p>相对于firebase来说，bugly可能就没那么友好，但是并不是每个团队都会因为卡顿这种事情去换一个sdk的。所以也必须讨论下这种方法的可行性。</p>
-<p>聚焦于我们的目标，我们只需要卡顿监控中带上用户的轨迹追踪信息，以及上报一些自定义的hash map。前言中我们有写到过，其实他sdk中crash以及异常的上报都是自己附带这些数据上去的，非常简单。</p>
-<p>而且他也提供了一个自定义异常的接口方法。如下</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> *    @brief 上报自定义错误</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *    @param category    类型(Cocoa=3,CSharp=4,JS=5,Lua=6)</span></span><br><span class="line"><span class="comment"> *    @param aName       名称</span></span><br><span class="line"><span class="comment"> *    @param aReason     错误原因</span></span><br><span class="line"><span class="comment"> *    @param aStackArray 堆栈</span></span><br><span class="line"><span class="comment"> *    @param info        附加数据</span></span><br><span class="line"><span class="comment"> *    @param terminate   上报后是否退出应用进程</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (<span class="keyword">void</span>)reportExceptionWithCategory:(NSUInteger)category</span><br><span class="line">                               name:(NSString *)aName</span><br><span class="line">                             reason:(NSString *)aReason</span><br><span class="line">                          callStack:(NSArray *)aStackArray</span><br><span class="line">                          extraInfo:(NSDictionary *)info</span><br><span class="line">                       terminateApp:(BOOL)<span class="built_in">terminate</span>;</span><br></pre></td></tr></table></figure>
-
-<p>和<code>Firebase</code>很像，传名称，原因,以及调用栈，但是有所不同的是，StackArray内的元素必须是String类型。也就是说，你必须自己做好符号化上传。并且，查遍了sdk，并没有通过地址上传的方法。</p>
-<p>所以我们只能硬着头皮上传自己本地符号化好的数据上去。其实网上提供的监控方法后续也提供了符号化的代码。其实大概的原理和我上一篇文章类似，都是几个表之间的匹配和查找。详情可以查看<a href="https://www.qingheblog.online/源码解读/fishhook原理/" target="_blank" rel="noopener">fishhook原理</a>。</p>
-<p>但是需要注意一点的是，我们的release包是做了去符号表处理的。按理说我们应该是上传的函数地址，然后统一由后台用符号化文件去做处理，然后做展示的。但是目前条件有限，我们只能用这种本地符号化的方案来做.由于脱了符号表,所以本地符号化是非常片面的。能符号化的只是很小的系统底层函数的一部分。</p>
-<p>但是，我们也可以利用这些仅有的信息来做很多的事情，在上传了之后，我们可以根据库的名字，和一些符号表，来和bugly自带的卡顿监控做匹配，配合起来看。巧妇难为无米之炊，也只能这样了。最终还是要转到自己的apm平台的</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实，说到底，这两种方案都是为了在卡顿监控的基础上追加一些信息，方便我们定位问题。具体的取舍还是要看团队，其实到最后。我们还是需要自己的一个apm平台，不过，这个后续再说吧。</p>
-]]></content>
-      <categories>
-        <category>工作总结</category>
       </categories>
   </entry>
   <entry>
@@ -890,6 +773,211 @@
 ]]></content>
       <categories>
         <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>iOS卡顿监控遇到的一些难题</title>
+    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E5%8D%A1%E9%A1%BF%E7%9B%91%E6%8E%A7%E9%81%87%E5%88%B0%E7%9A%84%E4%B8%80%E4%BA%9B%E9%9A%BE%E9%A2%98/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近一段时间在做卡顿的治理，目前项目中集成的是bugly，在解决了一些基础的问题之后。数据并没有降低到预期，于是要着手解决一些难的问题。但是bugly上对于卡顿的监控只能看到调用栈，很多复杂的问题上传的调用栈都是系统底层的调用栈。并不能帮我们进一步定位问题。</p>
+<h3 id="一些思考"><a href="#一些思考" class="headerlink" title="一些思考"></a>一些思考</h3><p>其实我们希望我们的卡顿监控是这样的。</p>
+<blockquote>
+<p>1.可以看到卡顿的调用栈(基本) </p>
+<p>2.可以能看到一些页面的追踪，例如进入了xx页面，退到了后面，进入了前台…等等消息</p>
+<p>3.最好能带上一些自定义的信息。例如用户信息等</p>
+</blockquote>
+<p>其实这3点bugly的crash监控是有做到的，错误的跟踪也是有做到的。但是唯独只有卡顿监控只有单一的调用栈。找遍了所有的自定义interface。并没有提供类似的补充功能。(btw，我觉得这应该在实现上没有什么太大的麻烦)可能是大多数应用对卡顿的数据并不敏感。而大厂都有自己的apm平台。所以我们只能根据我们自己的需求做一些其他方向的思考。</p>
+<h3 id="进一步的调查"><a href="#进一步的调查" class="headerlink" title="进一步的调查"></a>进一步的调查</h3><p>进过上一步的思考，我们定位了自己的需求。但是对于我个人而言，还是希望能用一些现成的东西，在时间成本上比较划算（主要是自己懒）。所以最开始的想法是想换一下别家的sdk。所以有了下面的调查</p>
+<blockquote>
+<p>1.网易云捕快: 好像有类似的功能，但是不提供试用。公司应该也不会批准在这方面产品额外的费用。所以pass</p>
+<p>2.阿里的岳鹰: 新推出的产品，试过之后发现目前没有提供卡顿的监控，暂时不提供对外的自定义日志功能</p>
+<p>3.firebase: 不得不说这真的是做得很好的一个产品。各方面都很全面,展示得也非常清晰。可惜的是，也没有类似的卡顿功能</p>
+</blockquote>
+<p>在经历了这些之后，我们只能另辟蹊径。但是目前我们的时间和人力并不允许我们去做一个完善的apm(虽然我觉得这是很早就应该做的东西)。所以我们只能想其他方法。尽量低成本以及完善的办法</p>
+<h3 id="另辟蹊径"><a href="#另辟蹊径" class="headerlink" title="另辟蹊径"></a>另辟蹊径</h3><p>其实无论是以后自己做apm还是目前要想其他办法。卡顿的监控肯定是需要自己来实现了。只是上报到自己的apm后台还是第三方的后台的区别罢了。所以第一步就先实现自己的卡顿监控</p>
+<p>关于iOS的卡顿监控这一点网络上已经讨论烂了，并不是什么复杂的技术。但是我们的管理层还是要看bugly的数据，所以我们就按bugly的实现方式来仿写一遍好了。在bugly的文档上，我们有看到这一段</p>
+<blockquote>
+<h4 id="检查卡顿的依据和上报时机是什么"><a href="#检查卡顿的依据和上报时机是什么" class="headerlink" title="检查卡顿的依据和上报时机是什么?"></a>检查卡顿的依据和上报时机是什么?</h4><blockquote>
+<p>iOS 卡顿检查的依据是监控主线程 Runloop 的执行，观察执行耗时是否超过预定阀值(默认阀值为3000ms) 在监控到卡顿时会立即记录线程堆栈到本地，在App从后台切换到前台时，执行上报。</p>
+</blockquote>
+</blockquote>
+<p>所以我们就直接按这个仿写一个。用信号量来监控，间隔3s RunLoop无响应就代表产生的一次卡顿。在后续的测试中发现bugly的确是这样做的，尽管静态库看不到源码，但是我们还是能和bugly一样监测到同样的卡顿，并且拿到同样的函数调用栈，接下来就是后续的上报的问题了。也就是一开始我们需要解决的问题。</p>
+<h3 id="上报方案之一FireBase"><a href="#上报方案之一FireBase" class="headerlink" title="上报方案之一FireBase"></a>上报方案之一<a href="https://firebase.google.com" target="_blank" rel="noopener">FireBase</a></h3><p>尽管在之前我们调研firebase的时候有提到过。firebase并不支持卡顿的一些监控。但是他支持自定义的异常上报的sdk。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Records an Exception Model described by an FIRExceptionModel object. The events are</span></span><br><span class="line"><span class="comment"> * grouped and displayed similarly to crashes. Keep in mind that this method can be expensive.</span></span><br><span class="line"><span class="comment"> * The total number of FIRExceptionModels that can be recorded during your app's life-cycle is</span></span><br><span class="line"><span class="comment"> * limited by a fixed-size circular buffer. If the buffer is overrun, the oldest data is dropped.</span></span><br><span class="line"><span class="comment"> * Exception Models are relayed to Crashlytics on a subsequent launch of your application.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param exceptionModel Instance of the FIRExceptionModel to be recorded</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (<span class="keyword">void</span>)recordExceptionModel:(FIRExceptionModel *)exceptionModel</span><br><span class="line">    NS_SWIFT_NAME(record(exceptionModel:));</span><br></pre></td></tr></table></figure>
+
+<p>其中这个exceptionModel的一些接口方法如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Creates an Exception Model model with the given required fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param name - typically the type of the Exception class</span></span><br><span class="line"><span class="comment"> * @param reason - the human-readable reason the issue occurred</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (instancetype)exceptionModelWithName:(NSString *)name</span><br><span class="line">                                reason:(NSString *)<span class="function">reason <span class="title">NS_SWIFT_UNAVAILABLE</span><span class="params">(<span class="string">""</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A list of Stack Frames that make up the stack trace. The order of the stack trace is top-first,</span></span><br><span class="line"><span class="comment"> * so typically the "main" function is the last element in this list.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">@property(nonatomic, copy) NSArray&lt;FIRStackFrame *&gt; *stackTrace;</span><br></pre></td></tr></table></figure>
+
+<p>提供了一个异常，以及原因。并且需要传入对应的调用栈帧。可以进一步进去看下这个<code>FIRStackFrame</code>这个类,发现他提供了一些并不简便的方法，需要上传的时候自己找到发生问题的文件。以及行数。</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Initializes a symbolicated Stack Frame with the given required fields. Symbolicated</span></span><br><span class="line"><span class="comment"> * Stack Frames will appear in the Crashlytics dashboard as reported in these fields.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * @param symbol - The function or method name</span></span><br><span class="line"><span class="comment"> * @param file - the file where the exception occurred</span></span><br><span class="line"><span class="comment"> * @param line - the line number</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">- (instancetype)initWithSymbol:(NSString *)symbol file:(NSString *)file <span class="built_in">line</span>:(NSInteger)<span class="built_in">line</span>;</span><br></pre></td></tr></table></figure>
+
+<p>例如下面就是文档推荐的用法</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">FIRExceptionModel *model =</span><br><span class="line">    [FIRExceptionModel exceptionModelWithName:@<span class="string">"FooException"</span> reason:@<span class="string">"There was a foo."</span>];</span><br><span class="line">model.stackTrace = @[</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"makeError"</span> fileName:@<span class="string">"handler.js"</span> lineNumber:<span class="number">495</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"then"</span> fileName:@<span class="string">"routes.js"</span> lineNumber:<span class="number">102</span>],</span><br><span class="line">  [FIRStackFrame stackFrameWithSymbol:@<span class="string">"main"</span> fileName:@<span class="string">"app.js"</span> lineNumber:<span class="number">12</span>],</span><br><span class="line">];</span><br></pre></td></tr></table></figure>
+
+<p>很明显在我们发生卡顿的时候我们自己再去检索到对应的文件以及行数是不可行的。所以我们需要找找其他的方法,这里就不卖关子了，在读interface的时候，发现了一个这样的文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This class is used in conjunction with recordExceptionModel to record information about</span><br><span class="line"> * non-ObjC&#x2F;C++ exceptions. All information included here will be displayed in the Crashlytics UI,</span><br><span class="line"> * and can influence crash grouping. Be particularly careful with the use of the address property.</span><br><span class="line"> *If set, Crashlytics will attempt symbolication and could overwrite other properities in the</span><br><span class="line"> *process.</span><br><span class="line"> **&#x2F;</span><br><span class="line">@interface FIRStackFrame (Private)</span><br><span class="line"></span><br><span class="line">+ (instancetype)stackFrame;</span><br><span class="line">+ (instancetype)stackFrameWithAddress:(NSUInteger)address;</span><br></pre></td></tr></table></figure>
+
+<p>很明显，这个文件是私有的，而且注释中告诉我们要用address这个api时一定要小心。ok,我们当然知道要小心，这个太适合我们了。因为我们在做卡顿监控的时候我们已经可以拿到函数调用栈的栈帧。直接调用就可以了。</p>
+<p>最后的代码可能就是这个样子</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line">NSMutableArray *callFrames = [NSMutableArray arrayWithCapacity:backtraceLength];</span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">int</span> k = <span class="number">0</span>; k &lt; backtraceLength; k++)&#123;</span><br><span class="line">    NSUInteger addr = backtraceBuffer[k];</span><br><span class="line">    FIRStackFrame *sf = [FIRStackFrame stackFrameWithAddress:addr];</span><br><span class="line">    [callFrames addObject:sf];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">FIRExceptionModel *exceptionModel = [FIRExceptionModel exceptionModelWithName:@<span class="string">"jank exception"</span> reason:@<span class="string">"main thread blocked"</span>];</span><br><span class="line">exceptionModel.stackTrace = callFrames;</span><br><span class="line">[[FIRCrashlytics crashlytics] recordExceptionModel:exceptionModel];</span><br></pre></td></tr></table></figure>
+
+<p>然后再配合<code>Firebase</code>自带的log功能，在一些生命周期(例如前后台切换，页面的加载)的地方做好log，这样我们就可以在监控到卡顿的同时可以了解到用户的一些使用踪迹了，方便我们debug。另外他还提供了<code>Add custom keys</code>的功能，这样我们也可以附带一些用户属性上去，比如用户id。等等之类的，都有助于我们定位问题。</p>
+<p>其实到这里这个方案就差不多结束了，在这点上<code>Firebase</code>做得真的很好，他会做好符号化并且归类。可能比较麻烦的是在集成以及处理符号表上传的时候。btw,在调查阿里的岳鹰sdk的时候，他们是说他们也有这个对应的sdk的，但是暂时不提供对外服务。真是可惜了</p>
+<h3 id="上报方案之二-Bugly"><a href="#上报方案之二-Bugly" class="headerlink" title="上报方案之二 Bugly"></a>上报方案之二 Bugly</h3><p>相对于firebase来说，bugly可能就没那么友好，但是并不是每个团队都会因为卡顿这种事情去换一个sdk的。所以也必须讨论下这种方法的可行性。</p>
+<p>聚焦于我们的目标，我们只需要卡顿监控中带上用户的轨迹追踪信息，以及上报一些自定义的hash map。前言中我们有写到过，其实他sdk中crash以及异常的上报都是自己附带这些数据上去的，非常简单。</p>
+<p>而且他也提供了一个自定义异常的接口方法。如下</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> *    @brief 上报自定义错误</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *    @param category    类型(Cocoa=3,CSharp=4,JS=5,Lua=6)</span></span><br><span class="line"><span class="comment"> *    @param aName       名称</span></span><br><span class="line"><span class="comment"> *    @param aReason     错误原因</span></span><br><span class="line"><span class="comment"> *    @param aStackArray 堆栈</span></span><br><span class="line"><span class="comment"> *    @param info        附加数据</span></span><br><span class="line"><span class="comment"> *    @param terminate   上报后是否退出应用进程</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">+ (<span class="keyword">void</span>)reportExceptionWithCategory:(NSUInteger)category</span><br><span class="line">                               name:(NSString *)aName</span><br><span class="line">                             reason:(NSString *)aReason</span><br><span class="line">                          callStack:(NSArray *)aStackArray</span><br><span class="line">                          extraInfo:(NSDictionary *)info</span><br><span class="line">                       terminateApp:(BOOL)<span class="built_in">terminate</span>;</span><br></pre></td></tr></table></figure>
+
+<p>和<code>Firebase</code>很像，传名称，原因,以及调用栈，但是有所不同的是，StackArray内的元素必须是String类型。也就是说，你必须自己做好符号化上传。并且，查遍了sdk，并没有通过地址上传的方法。</p>
+<p>所以我们只能硬着头皮上传自己本地符号化好的数据上去。其实网上提供的监控方法后续也提供了符号化的代码。其实大概的原理和我上一篇文章类似，都是几个表之间的匹配和查找。详情可以查看<a href="https://www.qingheblog.online/源码解读/fishhook原理/" target="_blank" rel="noopener">fishhook原理</a>。</p>
+<p>但是需要注意一点的是，我们的release包是做了去符号表处理的。按理说我们应该是上传的函数地址，然后统一由后台用符号化文件去做处理，然后做展示的。但是目前条件有限，我们只能用这种本地符号化的方案来做.由于脱了符号表,所以本地符号化是非常片面的。能符号化的只是很小的系统底层函数的一部分。</p>
+<p>但是，我们也可以利用这些仅有的信息来做很多的事情，在上传了之后，我们可以根据库的名字，和一些符号表，来和bugly自带的卡顿监控做匹配，配合起来看。巧妇难为无米之炊，也只能这样了。最终还是要转到自己的apm平台的</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实，说到底，这两种方案都是为了在卡顿监控的基础上追加一些信息，方便我们定位问题。具体的取舍还是要看团队，其实到最后。我们还是需要自己的一个apm平台，不过，这个后续再说吧。</p>
+]]></content>
+      <categories>
+        <category>工作总结</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>jenkins镜像更新</title>
+    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/jenkins%E9%95%9C%E5%83%8F%E6%9B%B4%E6%96%B0/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近在给测试配一台新的打包节点，顺便也更新下自己本机的脚本。然后发现很久以前的jenkins的版本和一些装好的插件都提示过期，为了方便使用就用到<em>updateCenter</em> 中自动更新，然后更新一直失败。所以只能换源，但是在网上查的换源方法都多多少少有点不对，或者都是copy ninja。所以自己总结一下</p>
+<h4 id="实践"><a href="#实践" class="headerlink" title="实践"></a>实践</h4><ul>
+<li><p>首先在插件管理的高级中将源更改为目标源，例如<em><a href="https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center.json" target="_blank" rel="noopener">https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center.json</a></em>，但是光做这个并没有什么用。这个只是把每次获取default.json这个文件的来源换了。但是具体的插件更新还是依赖于default.json内部的链接，但是内部的链接指向还是原来的地址。</p>
+</li>
+<li><p>编辑update.json:</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 找到updates文件夹内部的default.json进行替换</span></span><br><span class="line">cd .jenkins/updates/</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 使用sed命令进行新老源的替换,这是老版本的替换命令，具体来说就是将updates.jenkins-ci.org替换为mirrors.tuna.tsinghua.edu.cn，www.google.com替换为www.baidu.com：</span></span><br><span class="line"></span><br><span class="line">sed -i '' 's#http://updates.jenkins-ci.org/download#https://mirrors.tuna.tsinghua.edu.cn/jenkins#g' default.json &amp;&amp; sed -i '' 's#http://www.google.com#https://www.baidu.com#g' default.json</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 老版本的本源和新版本地址不一样，可以自己在文件内搜索是老版本还是新版本</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> 当然，在最新的jenkins版本中，已经有了调整，配置文件中的地址不再是updates.jenkins-ci.org，所以命令也需要实时更新：</span></span><br><span class="line">sed -i '' 's#https://updates.jenkins.io/download#https://mirrors.tuna.tsinghua.edu.cn/jenkins#g' default.json &amp;&amp; sed -i '' 's#http://www.google.com#https://www.baidu.com#g' default.json</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h4 id="sed注意点"><a href="#sed注意点" class="headerlink" title="sed注意点"></a>sed注意点</h4><ul>
+<li><p><strong><em>问题</em></strong></p>
+<p>由于我是在mac平台，在最开始用sed命令的时候发现有一些不对，上面的指令是已经改过的。假如用下面这条在linux上运行无误的指令则会报错</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sed -i 's#http://updates.jenkins-ci.org/download#https://mirrors.tuna.tsinghua.edu.cn/jenkins#g' default.json &amp;&amp; sed -i '' 's#http://www.google.com#https://www.baidu.com#g' default.json</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/jenkins%E9%95%9C%E5%83%8F%E6%9B%B4%E6%96%B0/jenkins%E9%95%9C%E5%83%8F%E6%9B%B4%E6%96%B01.png" alt="jenkins镜像更新"></p>
+<ul>
+<li><p><strong><em>原因</em></strong></p>
+<p>执行man sed查看帮助，发现 -i 操作后面要跟一个extension参数，明确备份的文件</p>
+</li>
+</ul>
+<p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/jenkins%E9%95%9C%E5%83%8F%E6%9B%B4%E6%96%B0/jenkins%E9%95%9C%E5%83%8F%E6%9B%B4%E6%96%B02.png" alt="jenkins镜像更新"></p>
+<ul>
+<li><p><strong><em>解决</em></strong></p>
+<p>我们不需要备份文件，所以给个长度为0的参数就好了，即 -i 后面追加一个’’,如第实践中的正确指令</p>
+</li>
+</ul>
+]]></content>
+      <categories>
+        <category>工作总结</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>iOS中的内存分配</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
+<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
+
+<p> 以及</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
+
+<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
+<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
+<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
+<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
+<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
+<p>其实我们可以这么理解</p>
+<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
+<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
+<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
+<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
+<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
+
+<p>1&lt;&lt;4就是16，即16字节对齐</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>photoshop的简单使用</title>
+    <url>/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps</p>
+<h4 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h4><ul>
+<li><p><strong><em>背景都弄成白色</em></strong></p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png" alt="photoshop的简单使用"></p>
+<p>添加色相饱和度图层，自带一个蒙版，将饱和度调低至0，整体都是灰色，然后利用画笔工具将需要显示彩色的部分涂抹出来。如果需要反转直接按command + L</p>
+</li>
+<li><p><strong><em>抠图工具</em></strong>:假如如下图人物太黑，背景已经足够亮了，只需要处理人物。可以利用左侧选择对象选择工具将人物扣出来单独做处理，例如需要加亮度，就选择一个曲线图层，会自带一个蒙版。然后拉高对应的亮度，如果裤子不需要提亮，可以用画笔工具选择黑色，然后涂抹掉裤子部位。假如觉得亮度不够 Command + j 复制蒙版涂层</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><strong><em>抠图加蒙版的使用2</em></strong>:  例如下图想营造一下电影里的感觉，可以通过降低背景的色相饱和度，然后增强人物的亮度来做处理。首先通过对象选择工具慢慢把人物扣出来，然后选择一个一个自然饱和度的图层，然后拉低饱和度。但是这个时候操作的是扣出来的人物，可以通过command+i进行蒙版反选，操作的就是整个背景了。然后合并图层，选择camera raw滤镜，选择颜色分级，把阴影部分往黄绿色调。然后用裁剪工具进行裁剪</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A83.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>色阶+阈值+黑白场</em></strong>：  例如下图中，选择色阶图层，会出现类似一个直方图，其中2个峰值大概横向坐标大概指向30和220左右，其实就是下图中对应的字和背景。但是不是纯黑和纯白。我们可以通过设置黑白场来做到想要的效果，分别用设置黑场的墨水笔去选中字体部分、用白场选择背景部分。就可以区分开了。也可以通过推动直方图中的黑白中间场3个标记来做到这件事。</p>
+<p> 也可以通过阈值蒙版来做这件事，做得更好，滑动阈值、达到自己想要的结果</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A84.png" alt="photoshop的简单使用"></p>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A85.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>扣头发丝</em></strong>： 利用选择对象工具，然后点击选择并遮住，然后在右侧菜单栏点击视图选项，选择一个比较好区分的方式，例如叠加，然后先把大体轮廓选择出来。在最后选择头发丝细节的时候在左侧菜单选择<strong>调整边缘画笔工具</strong>，弄完之后选择输出到：新建带有图层蒙版的图层。 这个时候如果图片不够锐利的话头发就会出现白丝，这个时候就要去修复白丝</p>
+<p>利用<strong>剪切蒙版法</strong>，在刚才已经抠出来的头发丝的基础上。新建蒙版，右键创建剪切蒙版.然后利用吸管工具(option + 左键)吸取白色周围正常头发的发色，然后利用画笔来涂抹.如果觉得颜色不对也可以利用橡皮工具进行擦除。然后改变画笔的硬度和大小来调头发丝的细节</p>
+</li>
+<li><p><strong><em>通道法抠图</em></strong>: 适合扣半透明复杂的场景，例如下图中的扣树。选择通道，在三个通道中选择一个更加能够把树和天空区分开来的通道，然后复制该通道，然后对该通道进行操作，选择图像菜单-&gt;调整-&gt;色阶。然后利用上面色阶的知识，推动黑白场，来彻底区分开两者。分开后利用command+左键点击拷贝通道建立选区。然后回到图层中利用这个选区直接创建蒙版。然后就可以了。可以新建一个蒙版作为背景，然后按住option+delete来填充颜色看是否有抠好</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A86.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><strong><em>画笔工具</em></strong>: 画笔不仅仅可以简单拿来做涂抹，也可以利用画笔工具对图片进行内容补充，例如上图中的树木。我们可以利用飞鸟画笔在树中添加各种各样的鸟。需要什么样的画笔就去找对应的素材即可，例如雪花等等……然后利用画笔细节设置做出各种渐变、自然的景象。最后如果觉得不真实可以将对应的笔刷蒙版更改透明度、或者转换为智能对象然后在滤镜中做高斯模糊的效果(雪景)</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A87.png" alt="photoshop的简单使用"></p>
+<ul>
+<li><p><strong><em>图片合成</em></strong>: 文件-&gt;自动-&gt;photo merge, 适合用于我们一个画面拍不下，需要多张图连起来的时候的场景。当我们横向画面不够时，我们拍摄时最好用竖构图来拍。反之如果想竖直叠加就用横构图，因为这样的画面会更广</p>
+</li>
+<li><p><strong><em>给画面增加光晕</em></strong>: 滤镜-&gt;redgridentsofware-&gt;插件 做调整</p>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>总体来说，PS相对于LR来说更加专业，毕竟LR大部分功能在PS的camera raw滤镜中都有。所以就需要更多的储备知识，其实学了一段时间之后才发现这些都是工具，后期需要更多的是思路和审美。以后还是要多看图和景提高自己的储备。不然有工具也不知道怎么用</p>
+]]></content>
+      <categories>
+        <category>摄影</category>
       </categories>
   </entry>
   <entry>
@@ -977,54 +1065,6 @@
 <p><img src="/%E6%91%84%E5%BD%B1/lightRoom%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/lightRoom%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A817.png" alt="lightRoom的简单使用"></p>
 <p>​    滑动拉高颜色去除颜色燥点,滑动明亮度会去除明亮度燥点。明亮度不宜拉的太高，会让画面失去锐度</p>
 <h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>这篇基本就是对LR的使用做了一个简单的笔记，基本都是用于宏观的调控，色彩亮度等等…至于我还想学的还有人脸的后期、美化等等。但是可能这部分会用到ps,边走边看吧</p>
-]]></content>
-      <categories>
-        <category>摄影</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>photoshop的简单使用</title>
-    <url>/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps</p>
-<h4 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h4><ul>
-<li><p><strong><em>背景都弄成白色</em></strong></p>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png" alt="photoshop的简单使用"></p>
-<p>添加色相饱和度图层，自带一个蒙版，将饱和度调低至0，整体都是灰色，然后利用画笔工具将需要显示彩色的部分涂抹出来。如果需要反转直接按command + L</p>
-</li>
-<li><p><strong><em>抠图工具</em></strong>:假如如下图人物太黑，背景已经足够亮了，只需要处理人物。可以利用左侧选择对象选择工具将人物扣出来单独做处理，例如需要加亮度，就选择一个曲线图层，会自带一个蒙版。然后拉高对应的亮度，如果裤子不需要提亮，可以用画笔工具选择黑色，然后涂抹掉裤子部位。假如觉得亮度不够 Command + j 复制蒙版涂层</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png" alt="photoshop的简单使用"></p>
-<ul>
-<li><strong><em>抠图加蒙版的使用2</em></strong>:  例如下图想营造一下电影里的感觉，可以通过降低背景的色相饱和度，然后增强人物的亮度来做处理。首先通过对象选择工具慢慢把人物扣出来，然后选择一个一个自然饱和度的图层，然后拉低饱和度。但是这个时候操作的是扣出来的人物，可以通过command+i进行蒙版反选，操作的就是整个背景了。然后合并图层，选择camera raw滤镜，选择颜色分级，把阴影部分往黄绿色调。然后用裁剪工具进行裁剪</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A83.png" alt="photoshop的简单使用"></p>
-<ul>
-<li><p><strong><em>色阶+阈值+黑白场</em></strong>：  例如下图中，选择色阶图层，会出现类似一个直方图，其中2个峰值大概横向坐标大概指向30和220左右，其实就是下图中对应的字和背景。但是不是纯黑和纯白。我们可以通过设置黑白场来做到想要的效果，分别用设置黑场的墨水笔去选中字体部分、用白场选择背景部分。就可以区分开了。也可以通过推动直方图中的黑白中间场3个标记来做到这件事。</p>
-<p> 也可以通过阈值蒙版来做这件事，做得更好，滑动阈值、达到自己想要的结果</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A84.png" alt="photoshop的简单使用"></p>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A85.png" alt="photoshop的简单使用"></p>
-<ul>
-<li><p><strong><em>扣头发丝</em></strong>： 利用选择对象工具，然后点击选择并遮住，然后在右侧菜单栏点击视图选项，选择一个比较好区分的方式，例如叠加，然后先把大体轮廓选择出来。在最后选择头发丝细节的时候在左侧菜单选择<strong>调整边缘画笔工具</strong>，弄完之后选择输出到：新建带有图层蒙版的图层。 这个时候如果图片不够锐利的话头发就会出现白丝，这个时候就要去修复白丝</p>
-<p>利用<strong>剪切蒙版法</strong>，在刚才已经抠出来的头发丝的基础上。新建蒙版，右键创建剪切蒙版.然后利用吸管工具(option + 左键)吸取白色周围正常头发的发色，然后利用画笔来涂抹.如果觉得颜色不对也可以利用橡皮工具进行擦除。然后改变画笔的硬度和大小来调头发丝的细节</p>
-</li>
-<li><p><strong><em>通道法抠图</em></strong>: 适合扣半透明复杂的场景，例如下图中的扣树。选择通道，在三个通道中选择一个更加能够把树和天空区分开来的通道，然后复制该通道，然后对该通道进行操作，选择图像菜单-&gt;调整-&gt;色阶。然后利用上面色阶的知识，推动黑白场，来彻底区分开两者。分开后利用command+左键点击拷贝通道建立选区。然后回到图层中利用这个选区直接创建蒙版。然后就可以了。可以新建一个蒙版作为背景，然后按住option+delete来填充颜色看是否有抠好</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A86.png" alt="photoshop的简单使用"></p>
-<ul>
-<li><strong><em>画笔工具</em></strong>: 画笔不仅仅可以简单拿来做涂抹，也可以利用画笔工具对图片进行内容补充，例如上图中的树木。我们可以利用飞鸟画笔在树中添加各种各样的鸟。需要什么样的画笔就去找对应的素材即可，例如雪花等等……然后利用画笔细节设置做出各种渐变、自然的景象。最后如果觉得不真实可以将对应的笔刷蒙版更改透明度、或者转换为智能对象然后在滤镜中做高斯模糊的效果(雪景)</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A87.png" alt="photoshop的简单使用"></p>
-<ul>
-<li><p><strong><em>图片合成</em></strong>: 文件-&gt;自动-&gt;photo merge, 适合用于我们一个画面拍不下，需要多张图连起来的时候的场景。当我们横向画面不够时，我们拍摄时最好用竖构图来拍。反之如果想竖直叠加就用横构图，因为这样的画面会更广</p>
-</li>
-<li><p><strong><em>给画面增加光晕</em></strong>: 滤镜-&gt;redgridentsofware-&gt;插件 做调整</p>
-</li>
-</ul>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>总体来说，PS相对于LR来说更加专业，毕竟LR大部分功能在PS的camera raw滤镜中都有。所以就需要更多的储备知识，其实学了一段时间之后才发现这些都是工具，后期需要更多的是思路和审美。以后还是要多看图和景提高自己的储备。不然有工具也不知道怎么用</p>
 ]]></content>
       <categories>
         <category>摄影</category>
@@ -1265,6 +1305,73 @@
       </categories>
   </entry>
   <entry>
+    <title>构图初步学习</title>
+    <url>/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在掌握了基础的光线之后，构图作为拍摄三要素之一也很重要。构图简单来理解就是我们在相框里的要摆放什么，他们的相对位置是怎么样的，从什么角度去拍摄他们。所谓”横看成岭侧成峰”其实就可以理解我们构图的一部分，但是作为没有任何美术基础和审美基础的死宅男。学习这一部分真的很困难，只能死记硬背然后多看举一反三了。写这篇博客也只是为了做一个简单的笔记</p>
+<h4 id="构图的本质"><a href="#构图的本质" class="headerlink" title="构图的本质"></a>构图的本质</h4><ul>
+<li><strong>取舍</strong></li>
+</ul>
+<p>​       首先一张图是有边界的，所以这就涉及到了取舍。一张图中会有很多元素，我们可以选择保留哪些元素</p>
+<ul>
+<li><strong>位置</strong></li>
+</ul>
+<p>​       图中元素相对应的位置是可以调整的–模特是可以移动的(假设人文)</p>
+<ul>
+<li><p><strong>视角</strong></p>
+<p>元素的相对应的位置(联系)也可以通过机位调整—横看成岭侧成峰。正对着拍会显得有仪式感。可以尝试不同的视角从上往下、从下往上、从上往上、从下往下。寻找对比留白，多尝试</p>
+</li>
+</ul>
+<h4 id="一些基本的构图模式"><a href="#一些基本的构图模式" class="headerlink" title="一些基本的构图模式"></a>一些基本的构图模式</h4><ul>
+<li><p>中心构图</p>
+<p>中心构图法算是新手最常用的方法，简单来说就是把物体放在画面正中拍摄，优点就在于主体突出、明确，而且画面容易取得左右平衡的效果，主体要选择相对饱满的，所占的比例要稍微大一些。单独的条状体不适合使用中心构图，容易显得突兀。当然，主体也不是越大越好，要根据实际情况来定。</p>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A01.png" alt="构图初步学习1"></p>
+</li>
+<li><p>对称构图</p>
+<p>对称式构图，是指在画面正中垂线两侧或正中水平线上下，对等或大致对等的构图模式。这种构图，布局均衡，结构规矩，给人平衡、平稳、庄重的感觉。对称式构图具有平衡、稳定、相呼应的特点。缺点：呆板、缺少变化。常用于表现对称的物体、建筑、特殊风格的物体。<strong>几何对称的场景都是恩赐</strong></p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A02.png" alt="构图初步学习1"></p>
+<ul>
+<li><p>三分法构图</p>
+<p><strong>三分法、万能的构图法则</strong></p>
+<p>三分法构图，又称九宫格法，指的是将单反相机取景器中所能看到的画面，横竖三等分的比例分割画面后，当被摄对象以线条的形式出现时，可将其置于画面的任意一条三分线位置。这种构图形式能够在视觉上带给人愉悦和生动地感受，避免主体居中而产生的呆板感。</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A03.png" alt="构图初步学习1"></p>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A04.png" alt="构图初步学习1"></p>
+<ul>
+<li><p>对角线构图</p>
+<p>物体在画幅中两对角的连线，近似于对角线，名由形状来定的。把主题安排在对角线上，有立体感、延伸感和运动感。</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A05.png" alt="构图初步学习1"></p>
+<ul>
+<li><p>点缀法构图</p>
+<p> 以下衬大，让主题更加突出并且不单调，有相应的对比</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A06.png" alt="构图初步学习1"></p>
+<ul>
+<li><p>引导线法构图</p>
+<p>引导线构图方法，就是利用画面中的线条去引导观者的目光，让他的目光最终可以汇聚到画面的焦点。当然引导线并不一定是具体的线，只要是有方向性的、连续的东西，我们都可以称之为引导线。</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A07.png" alt="构图初步学习1"></p>
+<ul>
+<li><p>框景法构图</p>
+<p>是指利用画面中景物的框架结构来包裹主体的构图方法。</p>
+<p>框景构图具有很强的视觉引导效果，利用这一点可以将所要重点表现的景物突出呈现在画面之中。</p>
+</li>
+</ul>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A08.png" alt="构图初步学习1"></p>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>老师说其实构图<strong>把一些东西，遵照一定的目的性，有美感的摆放在一张有边界的图中</strong>，但是我还是做不好这件事。只能多尝试多学习，多看，多拍。</p>
+<p>​           </p>
+]]></content>
+      <categories>
+        <category>摄影</category>
+      </categories>
+  </entry>
+  <entry>
     <title>基本安全防护记录</title>
     <url>/%E9%80%86%E5%90%91/%E5%9F%BA%E6%9C%AC%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4%E8%AE%B0%E5%BD%95/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>​    最近准备做一些基础的安全防护的功能，从最基础的反调试、反动态库注入，到反防护代码之间的博弈。发现了解越深懂的越不足。但是还是对这些基本的工作做一个简单的记录</p>
@@ -1408,73 +1515,6 @@
 <li><strong><em>快门优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制快门速度，剩下的让相机自己对应修正。控制快门速度影响着拍摄的时间，和成像的质量(是否有光的轨迹)</li>
 </ul>
 <h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实这些是一些非常理论的知识，通过学了这些之后之前拍摄遇到的一些问题可算豁然开朗。然后最终成像的三要素曝光只是其中之一,还有<strong>对焦</strong>和<strong>构图</strong>。对焦打算先放一放，因为现在的相机的对焦都非常智能了，可能下一步需要学习的就是构图。</p>
-]]></content>
-      <categories>
-        <category>摄影</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>构图初步学习</title>
-    <url>/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在掌握了基础的光线之后，构图作为拍摄三要素之一也很重要。构图简单来理解就是我们在相框里的要摆放什么，他们的相对位置是怎么样的，从什么角度去拍摄他们。所谓”横看成岭侧成峰”其实就可以理解我们构图的一部分，但是作为没有任何美术基础和审美基础的死宅男。学习这一部分真的很困难，只能死记硬背然后多看举一反三了。写这篇博客也只是为了做一个简单的笔记</p>
-<h4 id="构图的本质"><a href="#构图的本质" class="headerlink" title="构图的本质"></a>构图的本质</h4><ul>
-<li><strong>取舍</strong></li>
-</ul>
-<p>​       首先一张图是有边界的，所以这就涉及到了取舍。一张图中会有很多元素，我们可以选择保留哪些元素</p>
-<ul>
-<li><strong>位置</strong></li>
-</ul>
-<p>​       图中元素相对应的位置是可以调整的–模特是可以移动的(假设人文)</p>
-<ul>
-<li><p><strong>视角</strong></p>
-<p>元素的相对应的位置(联系)也可以通过机位调整—横看成岭侧成峰。正对着拍会显得有仪式感。可以尝试不同的视角从上往下、从下往上、从上往上、从下往下。寻找对比留白，多尝试</p>
-</li>
-</ul>
-<h4 id="一些基本的构图模式"><a href="#一些基本的构图模式" class="headerlink" title="一些基本的构图模式"></a>一些基本的构图模式</h4><ul>
-<li><p>中心构图</p>
-<p>中心构图法算是新手最常用的方法，简单来说就是把物体放在画面正中拍摄，优点就在于主体突出、明确，而且画面容易取得左右平衡的效果，主体要选择相对饱满的，所占的比例要稍微大一些。单独的条状体不适合使用中心构图，容易显得突兀。当然，主体也不是越大越好，要根据实际情况来定。</p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A01.png" alt="构图初步学习1"></p>
-</li>
-<li><p>对称构图</p>
-<p>对称式构图，是指在画面正中垂线两侧或正中水平线上下，对等或大致对等的构图模式。这种构图，布局均衡，结构规矩，给人平衡、平稳、庄重的感觉。对称式构图具有平衡、稳定、相呼应的特点。缺点：呆板、缺少变化。常用于表现对称的物体、建筑、特殊风格的物体。<strong>几何对称的场景都是恩赐</strong></p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A02.png" alt="构图初步学习1"></p>
-<ul>
-<li><p>三分法构图</p>
-<p><strong>三分法、万能的构图法则</strong></p>
-<p>三分法构图，又称九宫格法，指的是将单反相机取景器中所能看到的画面，横竖三等分的比例分割画面后，当被摄对象以线条的形式出现时，可将其置于画面的任意一条三分线位置。这种构图形式能够在视觉上带给人愉悦和生动地感受，避免主体居中而产生的呆板感。</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A03.png" alt="构图初步学习1"></p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A04.png" alt="构图初步学习1"></p>
-<ul>
-<li><p>对角线构图</p>
-<p>物体在画幅中两对角的连线，近似于对角线，名由形状来定的。把主题安排在对角线上，有立体感、延伸感和运动感。</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A05.png" alt="构图初步学习1"></p>
-<ul>
-<li><p>点缀法构图</p>
-<p> 以下衬大，让主题更加突出并且不单调，有相应的对比</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A06.png" alt="构图初步学习1"></p>
-<ul>
-<li><p>引导线法构图</p>
-<p>引导线构图方法，就是利用画面中的线条去引导观者的目光，让他的目光最终可以汇聚到画面的焦点。当然引导线并不一定是具体的线，只要是有方向性的、连续的东西，我们都可以称之为引导线。</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A07.png" alt="构图初步学习1"></p>
-<ul>
-<li><p>框景法构图</p>
-<p>是指利用画面中景物的框架结构来包裹主体的构图方法。</p>
-<p>框景构图具有很强的视觉引导效果，利用这一点可以将所要重点表现的景物突出呈现在画面之中。</p>
-</li>
-</ul>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A08.png" alt="构图初步学习1"></p>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>老师说其实构图<strong>把一些东西，遵照一定的目的性，有美感的摆放在一张有边界的图中</strong>，但是我还是做不好这件事。只能多尝试多学习，多看，多拍。</p>
-<p>​           </p>
 ]]></content>
       <categories>
         <category>摄影</category>
@@ -1625,6 +1665,49 @@
       </categories>
   </entry>
   <entry>
+    <title>逆向笔记一</title>
+    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
+<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
+<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
+<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
+</li>
+<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
+</li>
+<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
+<hr>
+</li>
+</ul>
+<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
+<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
+<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
+<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
+<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
+</ul>
+<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
+<ol>
+<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
+<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
+<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
+<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
+<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
+<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
+<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
+<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
+<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
+<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
+<li>写完之后做验证以及写好Tweak</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
+<ul>
+<li><input disabled type="checkbox"> </li>
+</ul>
+]]></content>
+      <categories>
+        <category>逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>编译速度优化实践</title>
     <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
     <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
@@ -1669,49 +1752,6 @@
 ]]></content>
       <categories>
         <category>项目优化</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>逆向笔记一</title>
-    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
-<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
-<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
-<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
-</li>
-<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
-</li>
-<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
-<hr>
-</li>
-</ul>
-<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
-<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
-<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
-<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
-<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
-</ul>
-<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
-<ol>
-<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
-<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
-<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
-<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
-<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
-<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
-<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
-<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
-<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
-<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
-<li>写完之后做验证以及写好Tweak</li>
-</ol>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
-<ul>
-<li><input disabled type="checkbox"> </li>
-</ul>
-]]></content>
-      <categories>
-        <category>逆向</category>
       </categories>
   </entry>
 </search>

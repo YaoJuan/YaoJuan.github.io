@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 由于现在公司主要业务的页面需求动态发版的能力，所以大多数页面都转向h5了，开句玩笑的话，真的是”客二消”，基于这些，为了用户的体验，所以客户端和前端一起做了个整个web的加速，当然离线化是很重要的一环，就拿出来单独的讲。  整个方案的流程   如上图所示，先从宏观的角度来看整体方案。整体方案大概分为以下几步：   * 整个方案的起始点归于前端，我们在前端的发版自动化中做一个插桩，功能是打出当">
+<meta property="og:type" content="article">
+<meta property="og:title" content="iOS的web离线化">
+<meta property="og:url" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 由于现在公司主要业务的页面需求动态发版的能力，所以大多数页面都转向h5了，开句玩笑的话，真的是”客二消”，基于这些，为了用户的体验，所以客户端和前端一起做了个整个web的加速，当然离线化是很重要的一环，就拿出来单独的讲。  整个方案的流程   如上图所示，先从宏观的角度来看整体方案。整体方案大概分为以下几步：   * 整个方案的起始点归于前端，我们在前端的发版自动化中做一个插桩，功能是打出当">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/weoffline.png">
+<meta property="article:published_time" content="2021-12-20T07:38:42.000Z">
+<meta property="article:modified_time" content="2021-12-20T08:52:24.900Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/weoffline.png">
+
+<link rel="canonical" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>iOS的web离线化 | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">8</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">29</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          iOS的web离线化
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-12-20 15:38:42 / 修改时间：16:52:24" itemprop="dateCreated datePublished" datetime="2021-12-20T15:38:42+08:00">2021-12-20</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/" itemprop="url" rel="index"><span itemprop="name">工作总结</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>由于现在公司主要业务的页面需求动态发版的能力，所以大多数页面都转向h5了，开句玩笑的话，真的是”客二消”，基于这些，为了用户的体验，所以客户端和前端一起做了个整个web的加速，当然离线化是很重要的一环，就拿出来单独的讲。</p>
+<h4 id="整个方案的流程"><a href="#整个方案的流程" class="headerlink" title="整个方案的流程"></a>整个方案的流程</h4><p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/weoffline.png" alt="iOS的web离线化"></p>
+<p>如上图所示，先从宏观的角度来看整体方案。整体方案大概分为以下几步：</p>
+<ul>
+<li><p>整个方案的起始点归于前端，我们在前端的发版自动化中做一个插桩，功能是打出当前版本的完整离线包和对比过往版本的查分包，上传到后台的包服务器，这个查分包的的版本数可以做一个阈值处理</p>
+</li>
+<li><p>在后端服务器，接收到这个包的同时会生成关于这个包的一些配置文件，供客户端做对比以及请求</p>
+</li>
+<li><p>客户端每次根据自己本地的配置去服务器换取对应的最新配置，然后经过一系列的请求、下载、合并、解压、以及以上操作的异常处理，然后更新本地的配置，方便下一次使用。到了这个时候，整个宏观的闭环结束，剩下的就是最简单也是最重要的资源的使用</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;*! 新版本 *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *version;</span><br><span class="line">@property (strong, nonatomic) NSString *patchUrl;       &#x2F;&#x2F;差异包</span><br><span class="line">@property (strong, nonatomic) NSString *buildUrl;       &#x2F;&#x2F;整包</span><br><span class="line">@property (strong, nonatomic) NSString *bundleMD5;      &#x2F;&#x2F;加密MD5值</span><br><span class="line"></span><br><span class="line">&#x2F;*! 该页面url对应的md5 *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *individualKey;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 优先级 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) NSInteger priority;</span><br><span class="line">&#x2F;*! 拦截白名单  *&#x2F;</span><br><span class="line">@property(nonatomic, strong) NSArray&lt;NSString *&gt; *whitelist;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 什么网络下进行更新 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) WebOfflineNetworkEnableType networkType;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 最低允许使用版本（离线包版本） *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *miniVersion;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 是否是全量包 仅给本地使用 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) BOOL isBuild;</span><br><span class="line">&#x2F;&#x2F;&#x2F; 以下3类都可以作为过滤不必要请求缓存的接口：若都为空，表示不设置过滤，所有的请求都缓存，设置了之后，仅对在白名单里或符合UA的请求进行缓存</span><br><span class="line">@property (nonatomic, strong) NSArray *whiteListsHost;       &#x2F;&#x2F;域名白名单</span><br><span class="line">@property (nonatomic, strong) NSArray *whiteListsRequestUrl; &#x2F;&#x2F;请求地址白名单</span><br><span class="line">@property (nonatomic, strong) NSString *whiteUserAgent;</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<ul>
+<li>最后一步是客户端对webview的资源的拦截替换成本地的包，这里的方案很多，单独来讲</li>
+</ul>
+<h4 id="webview的资源拦截"><a href="#webview的资源拦截" class="headerlink" title="webview的资源拦截"></a>webview的资源拦截</h4><p>由于已经是2021年了，所以就完全不考虑UIWebView了，而且关于这部分的方案我和安卓都是共同去查，然后求同存异，最后得出的结果不能说毫不相干吧，只能说是一模一样。其实市面上的方案大体都是这几个，我这边尝试过其中的两种。</p>
+<ul>
+<li><p><strong>获取沙盒html路径直接通过file协议加载index.html</strong></p>
+<p>通过方法加载</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">- (nullable WKNavigation *)loadFileURL:(NSURL *)URL allowingReadAccessToURL:(NSURL *)readAccessURL API_AVAILABLE(macos(10.11), ios(9.0));</span><br></pre></td></tr></table></figure>
+
+<p>用这个方案最大的好处是客户端简单，但是缺点也很多，因为我们之前组内其他同事就做过类似的方案，出现过跨域问题、file协议的接口问题。还有最重要的h5的改动的问题，我们一个很轻量边缘的h5页面就花了一个h5同事一个月的工作量</p>
+</li>
+<li><p><strong>使用NSURLProtocol拦截</strong>(尝试过的方案)</p>
+<p>这个方案最初尝试的就是这个方案，直接注册整个urlprotocol，对请求进行拦截，但是在上线的前半个月出的一些问题我觉得还是把这个方案下了。</p>
+<p>其中遇到过一些问题我分为可解决和不能解决的两种：</p>
+<blockquote>
+<p><em>可解决</em> ：1、 wkwebview的api不能使用的问题，这个可以通过hook解决</p>
+<p>​                 2、 私有api的问题，可以通过混淆解决</p>
+<p>未解决 ： post请求丢body的问题，在网上看过一系列的方案，包括不限于”让h5把body放在header里”， 以及“hook ajax”，但是都不能完美解决这个问题，而且只要注册了urlprotocol，哪怕不拦也不能解决。</p>
+</blockquote>
+<p>但是放弃这个方案还有一个重大的原因就是影响面太大了，只要注册一下，所以的请求原生的,webview的都会经过protocol走一道，完全无法做到颗粒度的细化，只要稍微出了点问题，都是大问题</p>
+</li>
+<li><p><strong>WKURLSchemeHandler</strong> (最终选用的方案)</p>
+<p>这个方案同样也有缺点，不能拦截http,https诸如此类非自定义的请求。api兼容最低11，但是其实11之后的部分系统也有一些问题，完美应用是12。但是我们做了一些用户数据的分析(12以下的用户只占比3.4%)之后我们还是决定用这个方案。</p>
+</li>
+<li><p><strong>起本地服务器加载离线资源</strong></p>
+<p>一个比较高大上的方案，并且涉及知识点比较多。我没去试这个方案是因为我自我认知上觉得对服务器方面的知识储备不够，出了问题我解决不了。但是国内外的大厂是有用这个方案的</p>
+</li>
+</ul>
+<h4 id="WKURLSchemeHandler的实践"><a href="#WKURLSchemeHandler的实践" class="headerlink" title="WKURLSchemeHandler的实践"></a>WKURLSchemeHandler的实践</h4><p>关于这块我们开始是想了两个细化方案</p>
+<ol>
+<li>是让h5那边修改scheme，我们用自定义的shcheme进行注册拦截，这是我们这边预期最好的方案。因为细粒度能掌握到文件级，非常的稳定，容错高，但是代价是h5的同事要做更改。</li>
+<li>直接通过私有api让<em>WKURLSchemeHandler</em>可以支持https和http，因为系统也是实现了这个方法然后来判断注册的shcheme来抛出异常，直接对这个函数进行overwrite就ok。但是如果这么做的话，只要对webview进行注册的所有的请求都会拦截。</li>
+</ol>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">+ (<span class="built_in">BOOL</span>)handlesURLScheme:(<span class="built_in">NSString</span> *)urlScheme</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NO</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>最后因为我们h5的同事时间紧，所以我们进行了第二种方式的处理，我对代码做了一些脱敏处理，写了些伪代码，大概是这样</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="keyword">void</span>)webView:(<span class="built_in">WKWebView</span> *)webView startURLSchemeTask:(<span class="keyword">id</span> &lt;<span class="built_in">WKURLSchemeTask</span>&gt;)urlSchemeTask  API_AVAILABLE(ios(<span class="number">11.0</span>))&#123;</span><br><span class="line">    <span class="built_in">NSURLRequest</span> *request = [urlSchemeTask request];</span><br><span class="line">    <span class="built_in">NSMutableURLRequest</span> *mutaRequest = [request mutableCopy];</span><br><span class="line"></span><br><span class="line">    [mutaRequest setValue:[<span class="keyword">self</span> getRequestCookieHeaderForURL:request.URL] forHTTPHeaderField:<span class="string">@"Cookie"</span>];</span><br><span class="line">    request = [mutaRequest <span class="keyword">copy</span>];</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">BOOL</span> shouldCache = <span class="literal">YES</span>;</span><br><span class="line">    <span class="keyword">if</span> (request.HTTPMethod &amp;&amp; ![request.HTTPMethod.uppercaseString isEqualToString:<span class="string">@"GET"</span>]) &#123;</span><br><span class="line">        shouldCache = <span class="literal">NO</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSString</span> *hasAjax = [request valueForHTTPHeaderField:<span class="string">@"X-Requested-With"</span>];</span><br><span class="line">    <span class="keyword">if</span> (hasAjax != <span class="literal">nil</span>) &#123;</span><br><span class="line">        shouldCache = <span class="literal">NO</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">dispatch_async</span>(<span class="keyword">self</span>.loadQueue, ^&#123;</span><br><span class="line">      <span class="comment">// 去本地根据url匹配本地文件</span></span><br><span class="line">        WebOfflineCacheItem *item = [WebOfflineCacheItem loadCompatibleItemWithRequest:request];</span><br><span class="line">        <span class="comment">// 有缓存</span></span><br><span class="line">        <span class="keyword">if</span> (item &amp;&amp; shouldCache &amp;&amp; item.MIMEType) &#123;</span><br><span class="line">            [urlSchemeTask didReceiveResponse:item.response];</span><br><span class="line">            <span class="keyword">if</span> (item.data) &#123;</span><br><span class="line">                [urlSchemeTask didReceiveData:item.data];</span><br><span class="line">                  <span class="comment">// 在这里可以做一些命中率的统计</span></span><br><span class="line">            &#125;</span><br><span class="line">            [urlSchemeTask didFinish];</span><br><span class="line"></span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">          <span class="comment">// 没有缓存，通过urlsession把请求发出去，然后和上面一样的方式还给urlSchemeTask</span></span><br><span class="line">          </span><br><span class="line">        &#125;</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="WKURLSchemeHandler的一些注意点"><a href="#WKURLSchemeHandler的一些注意点" class="headerlink" title="WKURLSchemeHandler的一些注意点"></a>WKURLSchemeHandler的一些注意点</h4><p>在测试以及上线后我们发现了一些问题，也做了一些相应的调整，大概如下</p>
+<ul>
+<li><p>本地未命中通过网络请求发出的task在webview提前关闭然后返回用urlschemeTask做接收引起的崩溃。</p>
+<p> 可以通过在webview的代理中做一个记录，然后在urlSchemeTask接收数据的时候拿这个记录看下是否关闭做对应的处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">- (void)webView:(WKWebView *)webView stopURLSchemeTask:(id &lt;WKURLSchemeTask&gt;)urlSchemeTask</span><br><span class="line">API_AVAILABLE(ios(11.0))&#123;</span><br><span class="line"></span><br><span class="line">    self.holdUrlSchemeTasks[urlSchemeTask.description] &#x3D; @(0);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<ul>
+<li><p>由于我们所有的webview用的同一个类，所以导致应用中的所有webview都会走这样的拦截，会导致不太可控，我的做法是在后台配置url的白名单，然后在注册的时候判断url来做对应的注册</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">if ([WebOfflineManager.shareInstance canActivaOfflineWithUrl:self.urlString]) &#123;</span><br><span class="line">           [configuration ssRegisterURLProtocol];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>还有前面说的这个api的11 available，但是我的建议是12起，其实根据苹果的官方信息11的留存用户真的不多，也可以根据自己的用户数据做调整，这只是我的建议</p>
+</li>
+<li><p>这样拦截会导致webview这部分的缓存失效，所以需要自己做webview的一个二级缓存实现，这个参考sd等开源库就好</p>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实到最后，客户端两边的方案几乎是一致的，而且安卓那边做起来更加简单，可以直接把拦截不了的请求丢回给webview处理。另外根据后续的数据分析统计，我们首次加载的缓存提速大概在15-20左右，最终启动速度在1秒左右。关于这个统计和分析我这边是做了一个自动化的处理，后面有机会再写一篇</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/" title="iOS的web离线化">http://qingheblog.online/工作总结/iOS的web离线化/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/%E9%A6%96%E9%A1%B5%E9%87%8D%E6%9E%84/" rel="prev" title="首页重构">
+      <i class="fa fa-chevron-left"></i> 首页重构
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#整个方案的流程"><span class="nav-number">2.</span> <span class="nav-text">整个方案的流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#webview的资源拦截"><span class="nav-number">3.</span> <span class="nav-text">webview的资源拦截</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#WKURLSchemeHandler的实践"><span class="nav-number">4.</span> <span class="nav-text">WKURLSchemeHandler的实践</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#WKURLSchemeHandler的一些注意点"><span class="nav-number">5.</span> <span class="nav-text">WKURLSchemeHandler的一些注意点</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">6.</span> <span class="nav-text">最后</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">29</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : '8244506c78616b84fe7167f649d0e4e0',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

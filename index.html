@@ -123,7 +123,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">28</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">29</span></a>
 
   </li>
   </ul>
@@ -153,6 +153,92 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/" class="post-title-link" itemprop="url">iOS的web离线化</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-12-20 15:38:42 / 修改时间：16:52:24" itemprop="dateCreated datePublished" datetime="2021-12-20T15:38:42+08:00">2021-12-20</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/" itemprop="url" rel="index"><span itemprop="name">工作总结</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          前言
+由于现在公司主要业务的页面需求动态发版的能力，所以大多数页面都转向h5了，开句玩笑的话，真的是”客二消”，基于这些，为了用户的体验，所以客户端和前端一起做了个整个web的加速，当然离线化是很重要的一环，就拿出来单独的讲。
+
+整个方案的流程
+
+
+如上图所示，先从宏观的角度来看整体方案。整体方案大概分为以下几步：
+
+ * 整个方案的起始点归于前端，我们在前端的发版自动化中做一个插桩，功能是打出当前版本的完整离线包和对比过往版本的查分包，上传到后台的包服务器，这个查分包的的版本数可以做一个阈值处理
+   
+   
+ * 在后端服务器，接收到这个包的同时会生成关于这个包的一些配置文件，供客户端做
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/%E9%A6%96%E9%A1%B5%E9%87%8D%E6%9E%84/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -178,7 +264,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2021-07-05 10:20:00 / 修改时间：15:12:13" itemprop="dateCreated datePublished" datetime="2021-07-05T10:20:00+08:00">2021-07-05</time>
+              <time title="创建时间：2021-07-05 10:20:00 / 修改时间：15:13:14" itemprop="dateCreated datePublished" datetime="2021-07-05T10:20:00+08:00">2021-07-05</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -202,7 +288,7 @@
 
       
           前言
-2季度我主要的任务也是做一个首页的重构，伴随着2季度的结束，也终于有时间来对这个方面来做一个总结
+上半年我主要的任务也是做一个首页的重构，伴随着2季度的结束，也终于有时间来对这个方面来做一个总结
 
 现存的问题
  * 字典软编码 大量后台数据回来不做本地解析，直接用字典进行操作。 这样做首先编译器没有任何提示，拥有敲错的隐患，而且开发效率不高。 另外在字典写以及传值中经常会变成可变字典。导致多个环境中本来应该共享的数据其实并不是同一份。而解析成本地的对象直接对对象进行操作可以很好的弥补这一点
@@ -916,104 +1002,6 @@ int main(int argc, const char * argv[]) {
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.JPG">
-      <meta itemprop="name" content="青禾">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="遇见青禾">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/" class="post-title-link" itemprop="url">OC的消息派发</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2021-02-03 17:52:16 / 修改时间：17:56:33" itemprop="dateCreated datePublished" datetime="2021-02-03T17:52:16+08:00">2021-02-03</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          前言
-在之前，我们有说过，oc所有的方法调用最终都是转成objc_msgSend来发送消息。但是具体objc_msgSend里会做什么，还是需要窥探一番。但是在这里之前，有两个数据结构需要了解一下，包装了一个方法method_t，和cache_t
-
-method_t
-method_t是包装方法的结构体，包含了方法的实现imp,签名selector，以及方法的type。对象所有的方法就是以一个个的method_t放在了对象所指的类的method_list_t的二维数组中。
-
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-
-
-struct method_t {
-    SEL 
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1085,7 +1073,7 @@ struct method_t {
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">28</span>
+          <span class="site-state-item-count">29</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

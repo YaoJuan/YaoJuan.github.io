@@ -123,7 +123,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">28</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">29</span></a>
 
   </li>
   </ul>
@@ -149,6 +149,104 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/" class="post-title-link" itemprop="url">OC的消息派发</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-02-03 17:52:16 / 修改时间：17:56:33" itemprop="dateCreated datePublished" datetime="2021-02-03T17:52:16+08:00">2021-02-03</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          前言
+在之前，我们有说过，oc所有的方法调用最终都是转成objc_msgSend来发送消息。但是具体objc_msgSend里会做什么，还是需要窥探一番。但是在这里之前，有两个数据结构需要了解一下，包装了一个方法method_t，和cache_t
+
+method_t
+method_t是包装方法的结构体，包含了方法的实现imp,签名selector，以及方法的type。对象所有的方法就是以一个个的method_t放在了对象所指的类的method_list_t的二维数组中。
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+
+
+struct method_t {
+    SEL 
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/OC%E7%9A%84%E6%B6%88%E6%81%AF%E6%B4%BE%E5%8F%91/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -1009,96 +1107,6 @@ Objective-C中的对象，简称OC对象，主要可以分为3种
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.JPG">
-      <meta itemprop="name" content="青禾">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="遇见青禾">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/" class="post-title-link" itemprop="url">编译速度优化实践</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2020-12-07 17:36:52 / 修改时间：17:42:58" itemprop="dateCreated datePublished" datetime="2020-12-07T17:36:52+08:00">2020-12-07</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/" itemprop="url" rel="index"><span itemprop="name">项目优化</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          前言
-项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins
-
-时间测量
- * ​ Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到
-   
-    
-   
-   
- * ​ 在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：
-   
-    defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES
-   
-   
-
-编译成功后，编
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1170,7 +1178,7 @@ Objective-C中的对象，简称OC对象，主要可以分为3种
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">28</span>
+          <span class="site-state-item-count">29</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

@@ -1,50 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>AssociatedObject</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前看过对象和类对象的的结构之后，我们知道objc_class中有一个变量的内部变量是专门保存属性的，是一个property_list_t 的指针类型。这个理解起来很简单，就是装在了所有的成员变量。但是我们有用过标题AssociatedObject这个api来给分类添加成员变量。那么添加之后是不是也在这里呢。今天就基于这个来探究一下</p>
-<h4 id="API"><a href="#API" class="headerlink" title="API"></a>API</h4><p>因为分类底层结构的限制(后面单独说下分类的结构，本质也是结构体)，不能添加成员变量到分类中。但可以通过关联对象来间接实现</p>
-<ul>
-<li><p>添加关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_setAssociatedObject(id object, const void * key,</span><br><span class="line">                                id value, objc_AssociationPolicy policy)</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>获得关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">id objc_getAssociatedObject(id object, const void * key)</span><br></pre></td></tr></table></figure>
-</li>
-<li><p>移除所有的关联对象</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_removeAssociatedObjects(id object)</span><br></pre></td></tr></table></figure>
-
-
-
-</li>
-</ul>
-<h6 id="AssociationPolicy"><a href="#AssociationPolicy" class="headerlink" title="AssociationPolicy"></a><strong>AssociationPolicy</strong></h6><p>其实对应的就是我们创建成员变量的一些关键字。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject1.png" alt="AssociatedObject"></p>
-<h4 id="源码管中窥豹"><a href="#源码管中窥豹" class="headerlink" title="源码管中窥豹"></a>源码管中窥豹</h4><p>我们直接看runtime的开源部分，找到对应的实现</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">objc_setAssociatedObject</span><span class="params">(id object, <span class="keyword">const</span> <span class="keyword">void</span> *key, id value, objc_AssociationPolicy policy)</span> </span>&#123;</span><br><span class="line">    _object_set_associative_reference(object, (<span class="keyword">void</span> *)key, value, policy);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span> _object_set_associative_reference(id object, <span class="keyword">void</span> *key, id value, <span class="keyword">uintptr_t</span> policy) &#123;</span><br><span class="line">    <span class="comment">// retain the new value (if any) outside the lock.</span></span><br><span class="line">    <span class="function">ObjcAssociation <span class="title">old_association</span><span class="params">(<span class="number">0</span>, nil)</span></span>;</span><br><span class="line">    id new_value = value ? acquireValue(value, policy) : nil;</span><br><span class="line">    &#123;</span><br><span class="line">        AssociationsManager manager;</span><br><span class="line">        <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">(manager.associations())</span></span>;</span><br><span class="line">        <span class="keyword">disguised_ptr_t</span> disguised_object = DISGUISE(object);</span><br><span class="line">        <span class="keyword">if</span> (new_value) &#123;</span><br><span class="line">            <span class="comment">// break any existing association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i != associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                <span class="comment">// secondary table exists</span></span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    j-&gt;second = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// create the new association (first time).</span></span><br><span class="line">                ObjectAssociationMap *refs = <span class="keyword">new</span> ObjectAssociationMap;</span><br><span class="line">                associations[disguised_object] = refs;</span><br><span class="line">                (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                object-&gt;setHasAssociatedObjects();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// setting the association to nil breaks the association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i !=  associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    refs-&gt;erase(j);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// release the old value (outside of the lock).</span></span><br><span class="line">    <span class="keyword">if</span> (old_association.hasValue()) ReleaseValue()(old_association);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AssociationsManager</span> &#123;</span></span><br><span class="line">    <span class="comment">// associative references: object pointer -&gt; PtrPtrHashMap.</span></span><br><span class="line">    <span class="keyword">static</span> AssociationsHashMap *_map;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    AssociationsManager()   &#123; AssociationsManagerLock.lock(); &#125;</span><br><span class="line">    ~AssociationsManager()  &#123; AssociationsManagerLock.unlock(); &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (_map == <span class="literal">NULL</span>)</span><br><span class="line">            _map = <span class="keyword">new</span> AssociationsHashMap();</span><br><span class="line">        <span class="keyword">return</span> *_map;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>尽管代码看起来很绕，但是我们可以看到其中第一步就是拿到一个mannager,然后拿到其中的一个变量。然后做了2次内层迭代找到对应的key赋值的。其实这里面就有几个关键的类</p>
-<ul>
-<li>AssociationsManager</li>
-<li>AssociationsHashMap</li>
-<li>ObjectAssociationMap</li>
-<li>ObjcAssociation</li>
-</ul>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject2.png" alt="AssociatedObject"></p>
-<p>其实看代码是能找出这之间的包含关系的<br><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject3.png" alt="AssociatedObject"></p>
-<p>同样的，取值也是通过这样的方式来取的。但是从源码的else我们可以注意到一点，当给一个AssociatedObject设为nil时，会执行erase操作。也就是清除这个关联对象</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>可以回到我们的问题，其实AssociatedObject的添加并不是添加到对应类对象的结构体成员变量中的，而且进程中，所有的关联对象被统一保存在mananger的一个hashmap中，然后通过对象地址取得对象的关联hashmap,再通过key从hashmap中拿到对应的Association,然后做处理</p>
-]]></content>
-      <categories>
-        <category>原理分析</category>
-      </categories>
-  </entry>
-  <entry>
     <title>Category的结构探究</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/Category%E7%9A%84%E7%BB%93%E6%9E%84%E6%8E%A2%E7%A9%B6/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前研究fishhook的时候有碰过一点点dyld加载的知识，当时惊鸿一瞥到了类的加载，也看到了分类的加载。只记得加载镜像之后的一些处理，大体对于分类还是有点迷迷糊糊，所以借着学习的机会走一次源码看看</p>
@@ -116,6 +72,50 @@
 </ol>
 </li>
 </ul>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>AssociatedObject</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前看过对象和类对象的的结构之后，我们知道objc_class中有一个变量的内部变量是专门保存属性的，是一个property_list_t 的指针类型。这个理解起来很简单，就是装在了所有的成员变量。但是我们有用过标题AssociatedObject这个api来给分类添加成员变量。那么添加之后是不是也在这里呢。今天就基于这个来探究一下</p>
+<h4 id="API"><a href="#API" class="headerlink" title="API"></a>API</h4><p>因为分类底层结构的限制(后面单独说下分类的结构，本质也是结构体)，不能添加成员变量到分类中。但可以通过关联对象来间接实现</p>
+<ul>
+<li><p>添加关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_setAssociatedObject(id object, const void * key,</span><br><span class="line">                                id value, objc_AssociationPolicy policy)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>获得关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">id objc_getAssociatedObject(id object, const void * key)</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>移除所有的关联对象</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">void objc_removeAssociatedObjects(id object)</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ul>
+<h6 id="AssociationPolicy"><a href="#AssociationPolicy" class="headerlink" title="AssociationPolicy"></a><strong>AssociationPolicy</strong></h6><p>其实对应的就是我们创建成员变量的一些关键字。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject1.png" alt="AssociatedObject"></p>
+<h4 id="源码管中窥豹"><a href="#源码管中窥豹" class="headerlink" title="源码管中窥豹"></a>源码管中窥豹</h4><p>我们直接看runtime的开源部分，找到对应的实现</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">objc_setAssociatedObject</span><span class="params">(id object, <span class="keyword">const</span> <span class="keyword">void</span> *key, id value, objc_AssociationPolicy policy)</span> </span>&#123;</span><br><span class="line">    _object_set_associative_reference(object, (<span class="keyword">void</span> *)key, value, policy);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">void</span> _object_set_associative_reference(id object, <span class="keyword">void</span> *key, id value, <span class="keyword">uintptr_t</span> policy) &#123;</span><br><span class="line">    <span class="comment">// retain the new value (if any) outside the lock.</span></span><br><span class="line">    <span class="function">ObjcAssociation <span class="title">old_association</span><span class="params">(<span class="number">0</span>, nil)</span></span>;</span><br><span class="line">    id new_value = value ? acquireValue(value, policy) : nil;</span><br><span class="line">    &#123;</span><br><span class="line">        AssociationsManager manager;</span><br><span class="line">        <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">(manager.associations())</span></span>;</span><br><span class="line">        <span class="keyword">disguised_ptr_t</span> disguised_object = DISGUISE(object);</span><br><span class="line">        <span class="keyword">if</span> (new_value) &#123;</span><br><span class="line">            <span class="comment">// break any existing association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i != associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                <span class="comment">// secondary table exists</span></span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    j-&gt;second = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// create the new association (first time).</span></span><br><span class="line">                ObjectAssociationMap *refs = <span class="keyword">new</span> ObjectAssociationMap;</span><br><span class="line">                associations[disguised_object] = refs;</span><br><span class="line">                (*refs)[key] = ObjcAssociation(policy, new_value);</span><br><span class="line">                object-&gt;setHasAssociatedObjects();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// setting the association to nil breaks the association.</span></span><br><span class="line">            AssociationsHashMap::iterator i = associations.<span class="built_in">find</span>(disguised_object);</span><br><span class="line">            <span class="keyword">if</span> (i !=  associations.<span class="built_in">end</span>()) &#123;</span><br><span class="line">                ObjectAssociationMap *refs = i-&gt;second;</span><br><span class="line">                ObjectAssociationMap::iterator j = refs-&gt;<span class="built_in">find</span>(key);</span><br><span class="line">                <span class="keyword">if</span> (j != refs-&gt;<span class="built_in">end</span>()) &#123;</span><br><span class="line">                    old_association = j-&gt;second;</span><br><span class="line">                    refs-&gt;erase(j);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// release the old value (outside of the lock).</span></span><br><span class="line">    <span class="keyword">if</span> (old_association.hasValue()) ReleaseValue()(old_association);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AssociationsManager</span> &#123;</span></span><br><span class="line">    <span class="comment">// associative references: object pointer -&gt; PtrPtrHashMap.</span></span><br><span class="line">    <span class="keyword">static</span> AssociationsHashMap *_map;</span><br><span class="line"><span class="keyword">public</span>:</span><br><span class="line">    AssociationsManager()   &#123; AssociationsManagerLock.lock(); &#125;</span><br><span class="line">    ~AssociationsManager()  &#123; AssociationsManagerLock.unlock(); &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function">AssociationsHashMap &amp;<span class="title">associations</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (_map == <span class="literal">NULL</span>)</span><br><span class="line">            _map = <span class="keyword">new</span> AssociationsHashMap();</span><br><span class="line">        <span class="keyword">return</span> *_map;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>尽管代码看起来很绕，但是我们可以看到其中第一步就是拿到一个mannager,然后拿到其中的一个变量。然后做了2次内层迭代找到对应的key赋值的。其实这里面就有几个关键的类</p>
+<ul>
+<li>AssociationsManager</li>
+<li>AssociationsHashMap</li>
+<li>ObjectAssociationMap</li>
+<li>ObjcAssociation</li>
+</ul>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject2.png" alt="AssociatedObject"></p>
+<p>其实看代码是能找出这之间的包含关系的<br><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/AssociatedObject3.png" alt="AssociatedObject"></p>
+<p>同样的，取值也是通过这样的方式来取的。但是从源码的else我们可以注意到一点，当给一个AssociatedObject设为nil时，会执行erase操作。也就是清除这个关联对象</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>可以回到我们的问题，其实AssociatedObject的添加并不是添加到对应类对象的结构体成员变量中的，而且进程中，所有的关联对象被统一保存在mananger的一个hashmap中，然后通过对象地址取得对象的关联hashmap,再通过key从hashmap中拿到对应的Association,然后做处理</p>
 ]]></content>
       <categories>
         <category>原理分析</category>
@@ -656,6 +656,61 @@
       </categories>
   </entry>
   <entry>
+    <title>iOS中的内存分配</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
+<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
+
+<p> 以及</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
+
+<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
+<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
+<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
+<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
+<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
+<p>其实我们可以这么理解</p>
+<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
+<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
+<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
+<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
+<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
+<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
+
+<p>1&lt;&lt;4就是16，即16字节对齐</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>fishhook原理</title>
     <url>/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/</url>
     <content><![CDATA[<h3 id="fishhook简介"><a href="#fishhook简介" class="headerlink" title="fishhook简介"></a>fishhook简介</h3><p>fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是<strong>动态修改 C 语言函数实现</strong>。</p>
@@ -761,58 +816,84 @@
       </categories>
   </entry>
   <entry>
-    <title>iOS中的内存分配</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近朋友有问一道面试题<strong>一个NSObject对象占用多少内存</strong>，以及说出为什么，所以对这方面做一个研究，也算自己对相关的知识做一个整理</p>
-<h4 id="获取对象内存的大小"><a href="#获取对象内存的大小" class="headerlink" title="获取对象内存的大小"></a>获取对象内存的大小</h4><p>在日常编程中，一般很少会用到类似的api,但是其实runtime中是有这方面的api的。例如</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Returns the size of instances of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param cls A class object.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The size in bytes of instances of the class \e cls, or \c 0 if \e cls is \c Nil.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT <span class="keyword">size_t</span></span><br><span class="line">class_getInstanceSize(Class _Nullable cls) </span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.5</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br></pre></td></tr></table></figure>
+    <title>iOS的web离线化</title>
+    <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>由于现在公司主要业务的页面需求动态发版的能力，所以大多数页面都转向h5了，开句玩笑的话，真的是”客二消”，基于这些，为了用户的体验，所以客户端和前端一起做了个整个web的加速，当然离线化是很重要的一环，就拿出来单独的讲。</p>
+<h4 id="整个方案的流程"><a href="#整个方案的流程" class="headerlink" title="整个方案的流程"></a>整个方案的流程</h4><p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/weoffline.png" alt="iOS的web离线化"></p>
+<p>如上图所示，先从宏观的角度来看整体方案。整体方案大概分为以下几步：</p>
+<ul>
+<li><p>整个方案的起始点归于前端，我们在前端的发版自动化中做一个插桩，功能是打出当前版本的完整离线包和对比过往版本的查分包，上传到后台的包服务器，这个查分包的的版本数可以做一个阈值处理</p>
+</li>
+<li><p>在后端服务器，接收到这个包的同时会生成关于这个包的一些配置文件，供客户端做对比以及请求</p>
+</li>
+<li><p>客户端每次根据自己本地的配置去服务器换取对应的最新配置，然后经过一系列的请求、下载、合并、解压、以及以上操作的异常处理，然后更新本地的配置，方便下一次使用。到了这个时候，整个宏观的闭环结束，剩下的就是最简单也是最重要的资源的使用</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">&#x2F;*! 新版本 *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *version;</span><br><span class="line">@property (strong, nonatomic) NSString *patchUrl;       &#x2F;&#x2F;差异包</span><br><span class="line">@property (strong, nonatomic) NSString *buildUrl;       &#x2F;&#x2F;整包</span><br><span class="line">@property (strong, nonatomic) NSString *bundleMD5;      &#x2F;&#x2F;加密MD5值</span><br><span class="line"></span><br><span class="line">&#x2F;*! 该页面url对应的md5 *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *individualKey;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 优先级 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) NSInteger priority;</span><br><span class="line">&#x2F;*! 拦截白名单  *&#x2F;</span><br><span class="line">@property(nonatomic, strong) NSArray&lt;NSString *&gt; *whitelist;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 什么网络下进行更新 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) WebOfflineNetworkEnableType networkType;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 最低允许使用版本（离线包版本） *&#x2F;</span><br><span class="line">@property(nonatomic, copy) NSString *miniVersion;</span><br><span class="line"></span><br><span class="line">&#x2F;*! 是否是全量包 仅给本地使用 *&#x2F;</span><br><span class="line">@property(nonatomic, assign) BOOL isBuild;</span><br><span class="line">&#x2F;&#x2F;&#x2F; 以下3类都可以作为过滤不必要请求缓存的接口：若都为空，表示不设置过滤，所有的请求都缓存，设置了之后，仅对在白名单里或符合UA的请求进行缓存</span><br><span class="line">@property (nonatomic, strong) NSArray *whiteListsHost;       &#x2F;&#x2F;域名白名单</span><br><span class="line">@property (nonatomic, strong) NSArray *whiteListsRequestUrl; &#x2F;&#x2F;请求地址白名单</span><br><span class="line">@property (nonatomic, strong) NSString *whiteUserAgent;</span><br></pre></td></tr></table></figure>
 
-<p> 以及</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">extern</span> <span class="keyword">size_t</span> <span class="title">malloc_size</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span> *ptr)</span></span>;</span><br><span class="line">    <span class="comment">/* Returns size of given ptr */</span></span><br></pre></td></tr></table></figure>
 
-<p>所以我们可以直接用这两个函数分别获得结果打印一下，就能获得结果</p>
-<h4 id="内存的最小分配值"><a href="#内存的最小分配值" class="headerlink" title="内存的最小分配值"></a>内存的最小分配值</h4><p>说干就干，导入对应的头文件，然后写代码直接跑起来验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">NSObject *obj &#x3D; [[NSObject alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(NSObject.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(obj)));</span><br></pre></td></tr></table></figure>
 
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log1.png" alt="iOS中的内存分配"></p>
-<p>但是结果和我们想象的有出入，所以必须解惑一下。点进NSObject的头文件</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface NSObject &lt;NSObject&gt; &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wobjc-interface-ivars&quot;</span><br><span class="line">    Class isa  OBJC_ISA_AVAILABILITY;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<ul>
+<li>最后一步是客户端对webview的资源的拦截替换成本地的包，这里的方案很多，单独来讲</li>
+</ul>
+<h4 id="webview的资源拦截"><a href="#webview的资源拦截" class="headerlink" title="webview的资源拦截"></a>webview的资源拦截</h4><p>由于已经是2021年了，所以就完全不考虑UIWebView了，而且关于这部分的方案我和安卓都是共同去查，然后求同存异，最后得出的结果不能说毫不相干吧，只能说是一模一样。其实市面上的方案大体都是这几个，我这边尝试过其中的两种。</p>
+<ul>
+<li><p><strong>获取沙盒html路径直接通过file协议加载index.html</strong></p>
+<p>通过方法加载</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">- (nullable WKNavigation *)loadFileURL:(NSURL *)URL allowingReadAccessToURL:(NSURL *)readAccessURL API_AVAILABLE(macos(10.11), ios(9.0));</span><br></pre></td></tr></table></figure>
 
-<p>其实里面就只有一个成员变量，至于方法这些肯定是不会放在对象的分配内存中的，如果不懂这一块的就先记住这个点就好了。</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/isa.png" alt="iOS中的内存分配"></p>
-<p>唯一的一个成员变量也就是isa,其实是一个结构体指针。按理来说就只有8个字节，而且通过class_getInstanceSize来验证确实也是8。但是操作系统分配内存为什么是16呢。查了下资料知道了大概，但是还是去找<a href="nhttps://opensource.apple.com/tarballs/objc4/">runtime的源码</a>来看一看。</p>
-<p>我们都知道我们对象分配内存都是调用的alloc，以及下层的allocWithZone。于是跟进源码可以到这一步</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> __attribute__((always_inline)) </span><br><span class="line">id</span><br><span class="line">_class_createInstanceFromZone(Class cls, <span class="keyword">size_t</span> extraBytes, <span class="keyword">void</span> *zone, </span><br><span class="line">                              <span class="keyword">bool</span> cxxConstruct = <span class="literal">true</span>, </span><br><span class="line">                              <span class="keyword">size_t</span> *outAllocatedSize = nil)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    assert(cls-&gt;isRealized());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Read class's info bits all at once for performance</span></span><br><span class="line">    <span class="keyword">bool</span> hasCxxCtor = cls-&gt;hasCxxCtor();</span><br><span class="line">    <span class="keyword">bool</span> hasCxxDtor = cls-&gt;hasCxxDtor();</span><br><span class="line">    <span class="keyword">bool</span> fast = cls-&gt;canAllocNonpointer();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = cls-&gt;instanceSize(extraBytes);</span><br><span class="line">    <span class="keyword">if</span> (outAllocatedSize) *outAllocatedSize = <span class="built_in">size</span>;</span><br><span class="line"></span><br><span class="line">    id obj;</span><br><span class="line">    <span class="keyword">if</span> (!zone  &amp;&amp;  fast) &#123;</span><br><span class="line">        obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line">        obj-&gt;initInstanceIsa(cls, hasCxxDtor);</span><br><span class="line">    &#125; </span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (zone) &#123;</span><br><span class="line">            obj = (id)malloc_zone_calloc ((<span class="keyword">malloc_zone_t</span> *)zone, <span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            obj = (id)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="built_in">size</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!obj) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Use raw pointer isa on the assumption that they might be </span></span><br><span class="line">        <span class="comment">// doing something weird with the zone or RR.</span></span><br><span class="line">        obj-&gt;initIsa(cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cxxConstruct &amp;&amp; hasCxxCtor) &#123;</span><br><span class="line">        obj = _objc_constructOrFree(obj, cls);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> obj;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>用这个方案最大的好处是客户端简单，但是缺点也很多，因为我们之前组内其他同事就做过类似的方案，出现过跨域问题、file协议的接口问题。还有最重要的h5的改动的问题，我们一个很轻量边缘的h5页面就花了一个h5同事一个月的工作量</p>
+</li>
+<li><p><strong>使用NSURLProtocol拦截</strong>(尝试过的方案)</p>
+<p>这个方案最初尝试的就是这个方案，直接注册整个urlprotocol，对请求进行拦截，但是在上线的前半个月出的一些问题我觉得还是把这个方案下了。</p>
+<p>其中遇到过一些问题我分为可解决和不能解决的两种：</p>
+<blockquote>
+<p><em>可解决</em> ：1、 wkwebview的api不能使用的问题，这个可以通过hook解决</p>
+<p>​                 2、 私有api的问题，可以通过混淆解决</p>
+<p>未解决 ： post请求丢body的问题，在网上看过一系列的方案，包括不限于”让h5把body放在header里”， 以及“hook ajax”，但是都不能完美解决这个问题，而且只要注册了urlprotocol，哪怕不拦也不能解决。</p>
+</blockquote>
+<p>但是放弃这个方案还有一个重大的原因就是影响面太大了，只要注册一下，所以的请求原生的,webview的都会经过protocol走一道，完全无法做到颗粒度的细化，只要稍微出了点问题，都是大问题</p>
+</li>
+<li><p><strong>WKURLSchemeHandler</strong> (最终选用的方案)</p>
+<p>这个方案同样也有缺点，不能拦截http,https诸如此类非自定义的请求。api兼容最低11，但是其实11之后的部分系统也有一些问题，完美应用是12。但是我们做了一些用户数据的分析(12以下的用户只占比3.4%)之后我们还是决定用这个方案。</p>
+</li>
+<li><p><strong>起本地服务器加载离线资源</strong></p>
+<p>一个比较高大上的方案，并且涉及知识点比较多。我没去试这个方案是因为我自我认知上觉得对服务器方面的知识储备不够，出了问题我解决不了。但是国内外的大厂是有用这个方案的</p>
+</li>
+</ul>
+<h4 id="WKURLSchemeHandler的实践"><a href="#WKURLSchemeHandler的实践" class="headerlink" title="WKURLSchemeHandler的实践"></a>WKURLSchemeHandler的实践</h4><p>关于这块我们开始是想了两个细化方案</p>
+<ol>
+<li>是让h5那边修改scheme，我们用自定义的shcheme进行注册拦截，这是我们这边预期最好的方案。因为细粒度能掌握到文件级，非常的稳定，容错高，但是代价是h5的同事要做更改。</li>
+<li>直接通过私有api让<em>WKURLSchemeHandler</em>可以支持https和http，因为系统也是实现了这个方法然后来判断注册的shcheme来抛出异常，直接对这个函数进行overwrite就ok。但是如果这么做的话，只要对webview进行注册的所有的请求都会拦截。</li>
+</ol>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">+ (<span class="built_in">BOOL</span>)handlesURLScheme:(<span class="built_in">NSString</span> *)urlScheme</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NO</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>我们发现最底层根据不同的调用调用不同的c函数来分配内存，分配一个size的内存，size是通过cls-&gt;instanceSize(extraBytes)来得来的。我们跟进去发现代码是这样的</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="comment">// Class's ivar size rounded up to a pointer-size boundary.</span></span><br><span class="line"><span class="function"><span class="keyword">uint32_t</span> <span class="title">alignedInstanceSize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> word_align(unalignedInstanceSize());</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">size_t</span> <span class="title">instanceSize</span><span class="params">(<span class="keyword">size_t</span> extraBytes)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">size_t</span> <span class="built_in">size</span> = alignedInstanceSize() + extraBytes;</span><br><span class="line">    <span class="comment">// CF requires all objects be at least 16 bytes.</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">size</span> &lt; <span class="number">16</span>) <span class="built_in">size</span> = <span class="number">16</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">size</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>最后因为我们h5的同事时间紧，所以我们进行了第二种方式的处理，我对代码做了一些脱敏处理，写了些伪代码，大概是这样</p>
+<figure class="highlight objc"><table><tr><td class="code"><pre><span class="line">- (<span class="keyword">void</span>)webView:(<span class="built_in">WKWebView</span> *)webView startURLSchemeTask:(<span class="keyword">id</span> &lt;<span class="built_in">WKURLSchemeTask</span>&gt;)urlSchemeTask  API_AVAILABLE(ios(<span class="number">11.0</span>))&#123;</span><br><span class="line">    <span class="built_in">NSURLRequest</span> *request = [urlSchemeTask request];</span><br><span class="line">    <span class="built_in">NSMutableURLRequest</span> *mutaRequest = [request mutableCopy];</span><br><span class="line"></span><br><span class="line">    [mutaRequest setValue:[<span class="keyword">self</span> getRequestCookieHeaderForURL:request.URL] forHTTPHeaderField:<span class="string">@"Cookie"</span>];</span><br><span class="line">    request = [mutaRequest <span class="keyword">copy</span>];</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">BOOL</span> shouldCache = <span class="literal">YES</span>;</span><br><span class="line">    <span class="keyword">if</span> (request.HTTPMethod &amp;&amp; ![request.HTTPMethod.uppercaseString isEqualToString:<span class="string">@"GET"</span>]) &#123;</span><br><span class="line">        shouldCache = <span class="literal">NO</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="built_in">NSString</span> *hasAjax = [request valueForHTTPHeaderField:<span class="string">@"X-Requested-With"</span>];</span><br><span class="line">    <span class="keyword">if</span> (hasAjax != <span class="literal">nil</span>) &#123;</span><br><span class="line">        shouldCache = <span class="literal">NO</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">dispatch_async</span>(<span class="keyword">self</span>.loadQueue, ^&#123;</span><br><span class="line">      <span class="comment">// 去本地根据url匹配本地文件</span></span><br><span class="line">        WebOfflineCacheItem *item = [WebOfflineCacheItem loadCompatibleItemWithRequest:request];</span><br><span class="line">        <span class="comment">// 有缓存</span></span><br><span class="line">        <span class="keyword">if</span> (item &amp;&amp; shouldCache &amp;&amp; item.MIMEType) &#123;</span><br><span class="line">            [urlSchemeTask didReceiveResponse:item.response];</span><br><span class="line">            <span class="keyword">if</span> (item.data) &#123;</span><br><span class="line">                [urlSchemeTask didReceiveData:item.data];</span><br><span class="line">                  <span class="comment">// 在这里可以做一些命中率的统计</span></span><br><span class="line">            &#125;</span><br><span class="line">            [urlSchemeTask didFinish];</span><br><span class="line"></span><br><span class="line">        &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">          <span class="comment">// 没有缓存，通过urlsession把请求发出去，然后和上面一样的方式还给urlSchemeTask</span></span><br><span class="line">          </span><br><span class="line">        &#125;</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>其实对于NSObjcet来说alignedInstanceSize是8个字节，恰好是他成员变量的大小，这是合理的。但是由于 CF requires all objects be at least 16 bytes.所以补足到了16。btw，alignedInstanceSize其实就是class_getInstanceSize的底层实现。</p>
-<p>其实我们可以这么理解</p>
-<p>class_getInstanceSize理解为创建一个实例对象，至少需要多少内存。</p>
-<p>而malloc_size获取的是实际上分配了多少内存，毕竟我们看到源码corefoundation还有一个最少16字节的规则。而且后面还有内存对齐的规则。</p>
-<h4 id="内存对齐"><a href="#内存对齐" class="headerlink" title="内存对齐"></a>内存对齐</h4><p>其实接下来，我们可以探究一下内存对齐的问题。从代码来说，我们定义这么一个类。</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">@interface Person : NSObject &#123;</span><br><span class="line">    @public</span><br><span class="line">    int _age;</span><br><span class="line">    int _height;</span><br><span class="line">    int _weight;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="WKURLSchemeHandler的一些注意点"><a href="#WKURLSchemeHandler的一些注意点" class="headerlink" title="WKURLSchemeHandler的一些注意点"></a>WKURLSchemeHandler的一些注意点</h4><p>在测试以及上线后我们发现了一些问题，也做了一些相应的调整，大概如下</p>
+<ul>
+<li><p>本地未命中通过网络请求发出的task在webview提前关闭然后返回用urlschemeTask做接收引起的崩溃。</p>
+<p> 可以通过在webview的代理中做一个记录，然后在urlSchemeTask接收数据的时候拿这个记录看下是否关闭做对应的处理</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">- (void)webView:(WKWebView *)webView stopURLSchemeTask:(id &lt;WKURLSchemeTask&gt;)urlSchemeTask</span><br><span class="line">API_AVAILABLE(ios(11.0))&#123;</span><br><span class="line"></span><br><span class="line">    self.holdUrlSchemeTasks[urlSchemeTask.description] &#x3D; @(0);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>由于这个类继承自NSobject,所以他的成员变量应该依次是isa、_age、_height、_weight。isa8个字节，age height weight个4个字节，12+8=20，然后结构体内存需要对齐，所以是24字节。我们也可以验证一下</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br></pre></td></tr></table></figure>
 
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log2.png" alt="iOS中的内存分配"></p>
-<p>没错，确实是24，但是通过我们上面学的知识，我们觉得还是用malloc来打印一下比较靠谱</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Person *p1 &#x3D; [[Person alloc] init];</span><br><span class="line">NSLog(@&quot;%zu&quot;,class_getInstanceSize(Person.class));</span><br><span class="line">NSLog(@&quot;%zd&quot;,malloc_size((__bridge const void *)(p1)));</span><br></pre></td></tr></table></figure>
 
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/iOS%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D/log3.png" alt="iOS中的内存分配"></p>
-<p>脑底里大大的几个问号，为什么是32啊。按理说24&gt;16了啊，不用做什么内存补足了，为什么还是分配了32呢，直觉告诉我是做了操作系统层的内存对齐。于是再去找一下对应的资料，在上面分配内存的代码最终走到calloc。于是我们下载libmalloc的源码。最终可以跟到这里</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line">segregated_size_to_fit(<span class="keyword">nanozone_t</span> *nanozone, <span class="keyword">size_t</span> <span class="built_in">size</span>, <span class="keyword">size_t</span> *pKey)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">size_t</span> k, slot_bytes;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> == <span class="built_in">size</span>) &#123;</span><br><span class="line">        <span class="built_in">size</span> = NANO_REGIME_QUANTA_SIZE; <span class="comment">// Historical behavior</span></span><br><span class="line">    &#125;</span><br><span class="line">    k = (<span class="built_in">size</span> + NANO_REGIME_QUANTA_SIZE - <span class="number">1</span>) &gt;&gt; SHIFT_NANO_QUANTUM; <span class="comment">// round up and shift for number of quanta</span></span><br><span class="line">    slot_bytes = k &lt;&lt; SHIFT_NANO_QUANTUM;                            <span class="comment">// multiply by power of two quanta size</span></span><br><span class="line">    *pKey = k - <span class="number">1</span>;                                                    <span class="comment">// Zero-based!</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> slot_bytes;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其实(size + NANO_REGIME_QUANTA_SIZE - 1) &gt;&gt; SHIFT_NANO_QUANTUM这一行就在做内存对齐，对齐的大小就是NANO_REGIME_QUANTA_SIZE</p>
-<figure class="highlight c"><table><tr><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_MAX_SIZE            256 <span class="comment">/* Buckets sized &#123;16, 32, 48, 64, 80, 96, 112, ...&#125; */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SHIFT_NANO_QUANTUM        4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NANO_REGIME_QUANTA_SIZE        (1 &lt;&lt; SHIFT_NANO_QUANTUM)    <span class="comment">// 16</span></span></span><br></pre></td></tr></table></figure>
-
-<p>1&lt;&lt;4就是16，即16字节对齐</p>
-<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>截止到这里，我们已经知道了iOS中分配内存的补足，也知道了有操作系统级的内存对齐。也知道了class_getInstanceSize和malloc_size的区别，相信也知道遇到这种问题该怎么回答了</p>
+</li>
+</ul>
+<ul>
+<li><p>由于我们所有的webview用的同一个类，所以导致应用中的所有webview都会走这样的拦截，会导致不太可控，我的做法是在后台配置url的白名单，然后在注册的时候判断url来做对应的注册</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">if ([WebOfflineManager.shareInstance canActivaOfflineWithUrl:self.urlString]) &#123;</span><br><span class="line">           [configuration ssRegisterURLProtocol];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>还有前面说的这个api的11 available，但是我的建议是12起，其实根据苹果的官方信息11的留存用户真的不多，也可以根据自己的用户数据做调整，这只是我的建议</p>
+</li>
+<li><p>这样拦截会导致webview这部分的缓存失效，所以需要自己做webview的一个二级缓存实现，这个参考sd等开源库就好</p>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实到最后，客户端两边的方案几乎是一致的，而且安卓那边做起来更加简单，可以直接把拦截不了的请求丢回给webview处理。另外根据后续的数据分析统计，我们首次加载的缓存提速大概在15-20左右，最终启动速度在1秒左右。关于这个统计和分析我这边是做了一个自动化的处理，后面有机会再写一篇</p>
 ]]></content>
       <categories>
-        <category>原理分析</category>
+        <category>工作总结</category>
       </categories>
   </entry>
   <entry>
@@ -1023,49 +1104,6 @@
       </categories>
   </entry>
   <entry>
-    <title>swiftMonkey的实践</title>
-    <url>/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在了解到monkey测试之后，觉得这个东西的确比较有必要，用起来成本太低了，只需要配置好点击一下，然后就可以让他模拟用户的行为。对于拿来做上线前的压力测试，获取一些crash是很有必要的。尽管并不一定能测出来。但是还是那句话，成本太低了，一台电脑，一部手机就可以拥有一个免费劳工</p>
-<h3 id="预研"><a href="#预研" class="headerlink" title="预研"></a>预研</h3><p>作为一个普通开发工程师，之前对这方面几乎一片空白,只知道android那边有现成的，所以先去调查了一下。发现了有3个可选的技术</p>
-<ul>
-<li><a href="https://testerhome.com/topics/2718" target="_blank" rel="noopener"><strong>CrashMonkey</strong></a>  后面发现不支持新版本Xcode，所以不可选</li>
-<li><a href="https://testerhome.com/topics/9810" target="_blank" rel="noopener"><strong>Fastmonkey</strong></a> 这个很厉害，配合别人的<a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">二次开发</a>，功能特别强大，但是也只能支持低版本的Xcode,和别人交流可以在电脑装一个低版本的Xcode专门来跑monkey，但是可能由于我的系统版本的问题老是崩溃，所以暂时放下。但是这个肯定要回来再看的</li>
-<li><a href="https://github.com/zalando/SwiftMonkey" target="_blank" rel="noopener"><strong>SwiftMonkey</strong></a> 一款XCUITesting框架开发的app稳定性测试工具，除了性能没有FastMonkey那么快，好像也还行。于是就决定用这个</li>
-</ul>
-<h3 id="SwiftMoneky"><a href="#SwiftMoneky" class="headerlink" title="SwiftMoneky"></a><a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">SwiftMoneky</a></h3><ul>
-<li><p><strong>SDK接入</strong>： 接入特别简单，直接手动拖拽和pods，我用的手动拖拽，一共2个project对应两个framework，swiftmonkey是拿来做测试的，monkeypaws是一个图形化的工具，用来展示具体的运动轨迹的</p>
-</li>
-<li><p><strong>OC项目</strong>: 做好对应的桥接文件的配置，做好项目依赖。主项目依赖paws,新建的XCUITest依赖monkey。根据文档配置好代码跑起来就没问题</p>
-</li>
-<li><p><strong>自定义插桩</strong>：monkey是<u>支持自定义的事件的插桩</u>的,写好对应的代码，配置好间隔权重就可以。例如登录，有时候你并不想monkey一直在登录界面做一些无用功，就可以自定义一个登录的插桩。可以配合XCUITest的代码录制来一起做</p>
-</li>
-</ul>
-  <figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">    Add a block for fixed-interval events.</span></span><br><span class="line"><span class="comment">  </span></span><br><span class="line"><span class="comment">    - parameter interval: How often to generate this</span></span><br><span class="line"><span class="comment">      event. One of these events will be generated after</span></span><br><span class="line"><span class="comment">      this many randomised events have been generated.</span></span><br><span class="line"><span class="comment">    - parameter action: The block to run when this event</span></span><br><span class="line"><span class="comment">      is generated.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">func</span> <span class="title">addAction</span><span class="params">(interval: Int, action: @escaping ActionClosure)</span></span> &#123;</span><br><span class="line">    regularActions.append((interval: interval, action: actInForeground(action)))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<h3 id="自动化"><a href="#自动化" class="headerlink" title="自动化"></a>自动化</h3><p>但是对于一个工具来说，目前这样不太合格，需要开发人员去运行ide，去一直看着电脑跑，对测试更不友好。所以需要做一些自动化的事情。所以想到配合Jenkins新建一个job。</p>
-<p>自己规划了一下计划，决定成品应该是这样的，需要测试的人应该只用输入需要跑的事件和测试代码的分支。然后就可以不用管，等待时间查看日志就行。所以job的大概执行思路是这样的</p>
-<p><img src="/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/setp.png" alt="setp"></p>
-<p>但是按着这个思路做还是遇到了一些问题。</p>
-<ul>
-<li><p><strong>单次跑monkey的问题</strong>:  之前跑都是通过Xcode点击来跑的，但是在jenkins上要基于命令行，其实这个还是比较简单。xcode作为一个gui工具也是基与xcodebuild来做的这些。查了下xcodebuild的资料，其实运行测试只用加上test的参数就行。整个命令下来大概是这个样子</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">xcodebuild test -workspace xx.xcworkspace -scheme xx -destination 'platform=xx,id=xx' -derivedDataPath xx</span><br></pre></td></tr></table></figure>
-
-<p>其中platform可以选择iOS和iOS Simulator,id是设备id，也可以根据name来做检索</p>
-</li>
-</ul>
-<ul>
-<li><p><strong>获取设备信息的问题:</strong> 可以通过<a href="https://github.com/ios-control/ios-deploy" target="_blank" rel="noopener">ios-deploy</a>来做处理，通过<u>ios-deploy -c –no-wifi -j</u>获取json格式的数据，后续可以通过一些处理拿到id或者name，交给上一步去做处理。我是用ruby写了个简单的脚本。这个就不多说了</p>
-</li>
-<li><p><strong>循环跑的问题:</strong> 在单次用例失败过后，monekey会停下来，尽管你可以通过设置continueAfterFailure=true来做，但是并不推荐。找了下资料，当一条命令执行成功之后，才会继续走下一条命令。在第一步的命令后面加上||true ，就算这个monkey失败了，也标记为成功，然后写个循环就好了</p>
-</li>
-</ul>
-<h3 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h3><p>其实到这里，差不多就结束了，通过这段时间的了解，发现XCUITest特别强大，我们可以录制好一段自定的插桩，来做业务的自动化测试。也可以做性能测试，例如启动速度，cpu，内存，disk，这些都是自带的一些API。后续也会往这方面再查看一下</p>
-]]></content>
-      <categories>
-        <category>swift</category>
-      </categories>
-  </entry>
-  <entry>
     <title>photoshop的简单使用</title>
     <url>/%E6%91%84%E5%BD%B1/photoshop%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>之前有用Lightroom来做一些简单的图片后期，但是有一些功能是是LR做不到的，例如抠图，对抠图的部分做操作。而且也有部分功能是都能做但是ps能做得更好的，例如污点去除，所以还是很有必要好好学一下ps</p>
@@ -1114,21 +1152,46 @@
       </categories>
   </entry>
   <entry>
-    <title>二叉树的最大宽度</title>
-    <url>/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近在复习二叉树相关的知识，在力扣上看到<a href="https://leetcode-cn.com/problems/maximum-width-of-binary-tree/" target="_blank" rel="noopener">这道题</a>，觉得挺有意思的。看到就想肯定是要用层序遍历，但是最开始用了很笨的方法，性能果然有问题，后面看了一些相关的注解，觉得真的是妙不可言</p>
-<h4 id="满二叉树"><a href="#满二叉树" class="headerlink" title="满二叉树"></a>满二叉树</h4><p><img src="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A61.png" alt="二叉树的最大宽度"></p>
-<p>当一棵树是满二叉树时，我们可以给每个对应的节点上索引，例如a根结点的索引为i,可以分别对他的左右节点赋值为2i和2i+1。例如上图中，a的索引就是1,B是2，c是3，而d和e作为b的节点，分别则为4和5.这样每个节点都有自己独一无二的索引。而且每一层的宽度，恰好是最右的节点的索引-最左的节点 + 1.</p>
-<h4 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h4><p>废话不多说直接上代码，由于个人主要擅长oc和swift，就拿swift来求解</p>
-<figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TreeNode</span> </span>&#123;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> val: <span class="type">Int</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> <span class="keyword">left</span>: <span class="type">TreeNode?</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> <span class="keyword">right</span>: <span class="type">TreeNode?</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>() &#123; <span class="keyword">self</span>.val = <span class="number">0</span>; <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="literal">nil</span>; <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="number">_</span> val: <span class="type">Int</span>) &#123; <span class="keyword">self</span>.val = val; <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="literal">nil</span>; <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="number">_</span> val: <span class="type">Int</span>, <span class="number">_</span> <span class="keyword">left</span>: <span class="type">TreeNode?</span>, <span class="number">_</span> <span class="keyword">right</span>: <span class="type">TreeNode?</span>) &#123;</span><br><span class="line">         <span class="keyword">self</span>.val = val</span><br><span class="line">         <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="keyword">left</span></span><br><span class="line">         <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="keyword">right</span></span><br><span class="line">     &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="keyword">static</span> <span class="function"><span class="keyword">func</span> <span class="title">widthOfBinaryTree</span><span class="params">(<span class="number">_</span> root: TreeNode?)</span></span> -&gt; <span class="type">Int</span> &#123;</span><br><span class="line">        <span class="keyword">guard</span> <span class="keyword">let</span> root = root <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 定义一个栈保存元组，0代表节点，1代表下标</span></span><br><span class="line">        <span class="keyword">var</span> stack = [(<span class="type">TreeNode</span>, <span class="type">Int</span>)]()</span><br><span class="line">        stack.append((root, <span class="number">1</span>))</span><br><span class="line">        <span class="keyword">var</span> maxWidth = <span class="number">1</span></span><br><span class="line"> </span><br><span class="line">        <span class="keyword">while</span> !stack.isEmpty &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 层序遍历</span></span><br><span class="line">            <span class="keyword">for</span> <span class="number">_</span> <span class="keyword">in</span> <span class="number">0</span>..&lt;stack.<span class="built_in">count</span> &#123;</span><br><span class="line">                <span class="keyword">let</span> (node, stackIndex) = stack.removeFirst()</span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> <span class="keyword">left</span> = node.<span class="keyword">left</span> &#123;</span><br><span class="line">                    stack.append((<span class="keyword">left</span>, stackIndex &amp;* <span class="number">2</span>))</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> <span class="keyword">right</span> = node.<span class="keyword">right</span> &#123;</span><br><span class="line">                    stack.append((<span class="keyword">right</span>, stackIndex &amp;* <span class="number">2</span> &amp;+ <span class="number">1</span>))</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> stack.<span class="built_in">count</span> &gt; <span class="number">1</span> &#123;</span><br><span class="line">                <span class="comment">// 算出下一层的宽度和已遍历层的最大宽度</span></span><br><span class="line">                <span class="keyword">let</span> maxFloorWidth = stack.last!.<span class="number">1</span> &amp;- stack.first!.<span class="number">1</span> &amp;+ <span class="number">1</span>;</span><br><span class="line">                maxWidth = <span class="built_in">max</span>(maxWidth, maxFloorWidth)</span><br><span class="line">                </span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> maxWidth</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+    <title>swiftMonkey的实践</title>
+    <url>/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在了解到monkey测试之后，觉得这个东西的确比较有必要，用起来成本太低了，只需要配置好点击一下，然后就可以让他模拟用户的行为。对于拿来做上线前的压力测试，获取一些crash是很有必要的。尽管并不一定能测出来。但是还是那句话，成本太低了，一台电脑，一部手机就可以拥有一个免费劳工</p>
+<h3 id="预研"><a href="#预研" class="headerlink" title="预研"></a>预研</h3><p>作为一个普通开发工程师，之前对这方面几乎一片空白,只知道android那边有现成的，所以先去调查了一下。发现了有3个可选的技术</p>
+<ul>
+<li><a href="https://testerhome.com/topics/2718" target="_blank" rel="noopener"><strong>CrashMonkey</strong></a>  后面发现不支持新版本Xcode，所以不可选</li>
+<li><a href="https://testerhome.com/topics/9810" target="_blank" rel="noopener"><strong>Fastmonkey</strong></a> 这个很厉害，配合别人的<a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">二次开发</a>，功能特别强大，但是也只能支持低版本的Xcode,和别人交流可以在电脑装一个低版本的Xcode专门来跑monkey，但是可能由于我的系统版本的问题老是崩溃，所以暂时放下。但是这个肯定要回来再看的</li>
+<li><a href="https://github.com/zalando/SwiftMonkey" target="_blank" rel="noopener"><strong>SwiftMonkey</strong></a> 一款XCUITesting框架开发的app稳定性测试工具，除了性能没有FastMonkey那么快，好像也还行。于是就决定用这个</li>
+</ul>
+<h3 id="SwiftMoneky"><a href="#SwiftMoneky" class="headerlink" title="SwiftMoneky"></a><a href="https://github.com/Lemonzhulixin/iOS-monkey" target="_blank" rel="noopener">SwiftMoneky</a></h3><ul>
+<li><p><strong>SDK接入</strong>： 接入特别简单，直接手动拖拽和pods，我用的手动拖拽，一共2个project对应两个framework，swiftmonkey是拿来做测试的，monkeypaws是一个图形化的工具，用来展示具体的运动轨迹的</p>
+</li>
+<li><p><strong>OC项目</strong>: 做好对应的桥接文件的配置，做好项目依赖。主项目依赖paws,新建的XCUITest依赖monkey。根据文档配置好代码跑起来就没问题</p>
+</li>
+<li><p><strong>自定义插桩</strong>：monkey是<u>支持自定义的事件的插桩</u>的,写好对应的代码，配置好间隔权重就可以。例如登录，有时候你并不想monkey一直在登录界面做一些无用功，就可以自定义一个登录的插桩。可以配合XCUITest的代码录制来一起做</p>
+</li>
+</ul>
+  <figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">    Add a block for fixed-interval events.</span></span><br><span class="line"><span class="comment">  </span></span><br><span class="line"><span class="comment">    - parameter interval: How often to generate this</span></span><br><span class="line"><span class="comment">      event. One of these events will be generated after</span></span><br><span class="line"><span class="comment">      this many randomised events have been generated.</span></span><br><span class="line"><span class="comment">    - parameter action: The block to run when this event</span></span><br><span class="line"><span class="comment">      is generated.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">func</span> <span class="title">addAction</span><span class="params">(interval: Int, action: @escaping ActionClosure)</span></span> &#123;</span><br><span class="line">    regularActions.append((interval: interval, action: actInForeground(action)))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>跑一下力扣</p>
-<p><img src="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A62.png" alt="二叉树的最大宽度"></p>
-<p>速度和性能都不错在swift横向对比中，代表也表简介</p>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实本质就是借用满二叉树的思路配合层序遍历，找出最值</p>
+<h3 id="自动化"><a href="#自动化" class="headerlink" title="自动化"></a>自动化</h3><p>但是对于一个工具来说，目前这样不太合格，需要开发人员去运行ide，去一直看着电脑跑，对测试更不友好。所以需要做一些自动化的事情。所以想到配合Jenkins新建一个job。</p>
+<p>自己规划了一下计划，决定成品应该是这样的，需要测试的人应该只用输入需要跑的事件和测试代码的分支。然后就可以不用管，等待时间查看日志就行。所以job的大概执行思路是这样的</p>
+<p><img src="/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/setp.png" alt="setp"></p>
+<p>但是按着这个思路做还是遇到了一些问题。</p>
+<ul>
+<li><p><strong>单次跑monkey的问题</strong>:  之前跑都是通过Xcode点击来跑的，但是在jenkins上要基于命令行，其实这个还是比较简单。xcode作为一个gui工具也是基与xcodebuild来做的这些。查了下xcodebuild的资料，其实运行测试只用加上test的参数就行。整个命令下来大概是这个样子</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">xcodebuild test -workspace xx.xcworkspace -scheme xx -destination 'platform=xx,id=xx' -derivedDataPath xx</span><br></pre></td></tr></table></figure>
+
+<p>其中platform可以选择iOS和iOS Simulator,id是设备id，也可以根据name来做检索</p>
+</li>
+</ul>
+<ul>
+<li><p><strong>获取设备信息的问题:</strong> 可以通过<a href="https://github.com/ios-control/ios-deploy" target="_blank" rel="noopener">ios-deploy</a>来做处理，通过<u>ios-deploy -c –no-wifi -j</u>获取json格式的数据，后续可以通过一些处理拿到id或者name，交给上一步去做处理。我是用ruby写了个简单的脚本。这个就不多说了</p>
+</li>
+<li><p><strong>循环跑的问题:</strong> 在单次用例失败过后，monekey会停下来，尽管你可以通过设置continueAfterFailure=true来做，但是并不推荐。找了下资料，当一条命令执行成功之后，才会继续走下一条命令。在第一步的命令后面加上||true ，就算这个monkey失败了，也标记为成功，然后写个循环就好了</p>
+</li>
+</ul>
+<h3 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h3><p>其实到这里，差不多就结束了，通过这段时间的了解，发现XCUITest特别强大，我们可以录制好一段自定的插桩，来做业务的自动化测试。也可以做性能测试，例如启动速度，cpu，内存，disk，这些都是自带的一些API。后续也会往这方面再查看一下</p>
 ]]></content>
       <categories>
-        <category>算法</category>
+        <category>swift</category>
       </categories>
   </entry>
   <entry>
@@ -1213,6 +1276,24 @@
       </categories>
   </entry>
   <entry>
+    <title>二叉树的最大宽度</title>
+    <url>/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近在复习二叉树相关的知识，在力扣上看到<a href="https://leetcode-cn.com/problems/maximum-width-of-binary-tree/" target="_blank" rel="noopener">这道题</a>，觉得挺有意思的。看到就想肯定是要用层序遍历，但是最开始用了很笨的方法，性能果然有问题，后面看了一些相关的注解，觉得真的是妙不可言</p>
+<h4 id="满二叉树"><a href="#满二叉树" class="headerlink" title="满二叉树"></a>满二叉树</h4><p><img src="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A61.png" alt="二叉树的最大宽度"></p>
+<p>当一棵树是满二叉树时，我们可以给每个对应的节点上索引，例如a根结点的索引为i,可以分别对他的左右节点赋值为2i和2i+1。例如上图中，a的索引就是1,B是2，c是3，而d和e作为b的节点，分别则为4和5.这样每个节点都有自己独一无二的索引。而且每一层的宽度，恰好是最右的节点的索引-最左的节点 + 1.</p>
+<h4 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h4><p>废话不多说直接上代码，由于个人主要擅长oc和swift，就拿swift来求解</p>
+<figure class="highlight swift"><table><tr><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TreeNode</span> </span>&#123;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> val: <span class="type">Int</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> <span class="keyword">left</span>: <span class="type">TreeNode?</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> <span class="keyword">right</span>: <span class="type">TreeNode?</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>() &#123; <span class="keyword">self</span>.val = <span class="number">0</span>; <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="literal">nil</span>; <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="number">_</span> val: <span class="type">Int</span>) &#123; <span class="keyword">self</span>.val = val; <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="literal">nil</span>; <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="number">_</span> val: <span class="type">Int</span>, <span class="number">_</span> <span class="keyword">left</span>: <span class="type">TreeNode?</span>, <span class="number">_</span> <span class="keyword">right</span>: <span class="type">TreeNode?</span>) &#123;</span><br><span class="line">         <span class="keyword">self</span>.val = val</span><br><span class="line">         <span class="keyword">self</span>.<span class="keyword">left</span> = <span class="keyword">left</span></span><br><span class="line">         <span class="keyword">self</span>.<span class="keyword">right</span> = <span class="keyword">right</span></span><br><span class="line">     &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="keyword">static</span> <span class="function"><span class="keyword">func</span> <span class="title">widthOfBinaryTree</span><span class="params">(<span class="number">_</span> root: TreeNode?)</span></span> -&gt; <span class="type">Int</span> &#123;</span><br><span class="line">        <span class="keyword">guard</span> <span class="keyword">let</span> root = root <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 定义一个栈保存元组，0代表节点，1代表下标</span></span><br><span class="line">        <span class="keyword">var</span> stack = [(<span class="type">TreeNode</span>, <span class="type">Int</span>)]()</span><br><span class="line">        stack.append((root, <span class="number">1</span>))</span><br><span class="line">        <span class="keyword">var</span> maxWidth = <span class="number">1</span></span><br><span class="line"> </span><br><span class="line">        <span class="keyword">while</span> !stack.isEmpty &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 层序遍历</span></span><br><span class="line">            <span class="keyword">for</span> <span class="number">_</span> <span class="keyword">in</span> <span class="number">0</span>..&lt;stack.<span class="built_in">count</span> &#123;</span><br><span class="line">                <span class="keyword">let</span> (node, stackIndex) = stack.removeFirst()</span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> <span class="keyword">left</span> = node.<span class="keyword">left</span> &#123;</span><br><span class="line">                    stack.append((<span class="keyword">left</span>, stackIndex &amp;* <span class="number">2</span>))</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> <span class="keyword">right</span> = node.<span class="keyword">right</span> &#123;</span><br><span class="line">                    stack.append((<span class="keyword">right</span>, stackIndex &amp;* <span class="number">2</span> &amp;+ <span class="number">1</span>))</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> stack.<span class="built_in">count</span> &gt; <span class="number">1</span> &#123;</span><br><span class="line">                <span class="comment">// 算出下一层的宽度和已遍历层的最大宽度</span></span><br><span class="line">                <span class="keyword">let</span> maxFloorWidth = stack.last!.<span class="number">1</span> &amp;- stack.first!.<span class="number">1</span> &amp;+ <span class="number">1</span>;</span><br><span class="line">                maxWidth = <span class="built_in">max</span>(maxWidth, maxFloorWidth)</span><br><span class="line">                </span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> maxWidth</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>跑一下力扣</p>
+<p><img src="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A62.png" alt="二叉树的最大宽度"></p>
+<p>速度和性能都不错在swift横向对比中，代表也表简介</p>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实本质就是借用满二叉树的思路配合层序遍历，找出最值</p>
+]]></content>
+      <categories>
+        <category>算法</category>
+      </categories>
+  </entry>
+  <entry>
     <title>不同类型的block</title>
     <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E4%B8%8D%E5%90%8C%E7%B1%BB%E5%9E%8B%E7%9A%84block/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前，打印过block的类型，显示是<strong>NSGlobalBlock</strong>，那么有没有其他类型的block呢，都是些什么类型呢。</p>
@@ -1268,40 +1349,47 @@
       </categories>
   </entry>
   <entry>
-    <title>向super发消息</title>
-    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客</p>
-<h4 id="objc-msgSendSuper"><a href="#objc-msgSendSuper" class="headerlink" title="objc_msgSendSuper"></a>objc_msgSendSuper</h4><p>首先验证下自己的猜想，建2个类，写出需要的代码。</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">int main(int argc, const char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        </span><br><span class="line">        Girl *g &#x3D; [[Girl alloc] init];</span><br><span class="line">        [g test];</span><br><span class="line">    &#125;</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">@implementation Girl</span><br><span class="line">- (void)test &#123;</span><br><span class="line">    [super test];</span><br><span class="line">&#125;</span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
-
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF1.png" alt="向super发消息"></p>
-<p>果然不出所料，打印结果如下。为了弄清楚为什么，还是老办法，编译成c++。</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> _I_Girl_test(Girl * self, SEL _cmd) &#123;</span><br><span class="line">    ((<span class="keyword">void</span> (*)(__rw_objc_super *, SEL))(<span class="keyword">void</span> *)objc_msgSendSuper)((__rw_objc_super)&#123;(id)self, (id)class_getSuperclass(objc_getClass(<span class="string">"Girl"</span>))&#125;, sel_registerName(<span class="string">"test"</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">rw_objc_super</span> &#123;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">object</span>;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">superClass</span>;</span> </span><br><span class="line">    __rw_objc_super(struct objc_object *o, struct objc_object *s) : object(o), superClass(s) &#123;&#125; </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p>其实弄清楚了就是调用了objc_msgSendSuper函数，然后2个参数，第一个参数是一个__rw_objc_super的结构体，还有一个就是方法的sel。</p>
-<p>然后__rw_objc_super2个成员一个是自己当前的对象，另外一个是自己的父类对象。</p>
-<p>但是觉得还是不够清晰，所以还是去看下objc_msgSendSuper的源码，很不幸，汇编实现的。而且描述得也不是很清楚</p>
-<figure class="highlight llvm"><table><tr><td class="code"><pre><span class="line">ENTRY _objc_msgSendSuper</span><br><span class="line">UNWIND _objc_msgSendSuper, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">CacheLookup NORMAL        // calls imp <span class="keyword">or</span> objc_msgSend_uncached</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper</span><br></pre></td></tr></table></figure>
-
-<p>就看到取了16个字节放到x0和x16，注释说x0是真正的消息接收者。x16是类，其实这个x0就是上面的objcet也就是girl对象。然后x16类就是父类。然后去执行函数去了。另外可以在苹果的注释也可以看到</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Sends a message with a simple return value to the superclass of an instance of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param super A pointer to an \c objc_super data structure. Pass values identifying the</span></span><br><span class="line"><span class="comment"> *  context the message was sent to, including the instance of the class that is to receive the</span></span><br><span class="line"><span class="comment"> *  message and the superclass at which to start searching for the method implementation.</span></span><br><span class="line"><span class="comment"> * @param op A pointer of type SEL. Pass the selector of the method that will handle the message.</span></span><br><span class="line"><span class="comment"> * @param ...</span></span><br><span class="line"><span class="comment"> *   A variable argument list containing the arguments to the method.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The return value of the method identified by \e op.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @see objc_msgSend</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT id _Nullable</span><br><span class="line">objc_msgSendSuper(struct objc_super * _Nonnull super, SEL _Nonnull op, ...)</span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.0</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/// Specifies the superclass of an instance. </span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_super</span> &#123;</span></span><br><span class="line">    <span class="comment">/// Specifies an instance of a class.</span></span><br><span class="line">    __unsafe_unretained _Nonnull id receiver;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Specifies the particular superclass of the instance to message. </span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> !defined(__cplusplus)  &amp;&amp;  !__OBJC2__</span></span><br><span class="line">    <span class="comment">/* For compatibility with old objc-runtime.h header */</span></span><br><span class="line">    __unsafe_unretained _Nonnull Class <span class="class"><span class="keyword">class</span>;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">    __unsafe_unretained _Nonnull Class super_class;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* super_class is the first class to search */</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
-
-<p>其实这个结构体的对象的第一个变量是消息接受者。然后第二个类只是说明到时候找imp的时候是从哪个类的实现开始找。</p>
-<p>另外要说一点的是oc所有的方法的本质都是转换成objc_msgSend来做的调用，然后固定有2个参数，第1个是消息接受者。也就是我们函数里敲出来的self。所以在刚入门iOS的时候理解成函数当前的对象和类是没问题的，但是本质这个self其实是默认参数消息接受者。第二个参数是_cmd，类型就是SEL类型。如果需要其他参数则是放到后续的寄存器存放的。</p>
-<p>所以我们也理解到了，调用super只不过是从父类去查找方法而已，然后消息接受者还是自己。</p>
-<h4 id="objc-msgSendSuper2"><a href="#objc-msgSendSuper2" class="headerlink" title="objc_msgSendSuper2"></a>objc_msgSendSuper2</h4><p>有一点要说明，用clang转换成c++并不是百分之百的准确，但是也足够帮我们了解底层了。例如上面调用super我们编译出来显示执行的是objc_msgSendSuper,但是事实其实有出入。我们直接打断点查看</p>
-<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF2.png" alt="向super发消息"></p>
-<p>尽管是x86的汇编，我们依然也可看到，最后调用的是objc_msgSendSuper2。查看源码，还是汇编。</p>
-<figure class="highlight llvm"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">ENTRY _objc_msgSendSuper<span class="number">2</span></span><br><span class="line">UNWIND _objc_msgSendSuper<span class="number">2</span>, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">ldr    <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">16</span>, #SUPERCLASS]    // <span class="keyword">x</span><span class="number">16</span> = class-&gt;superclass</span><br><span class="line">CacheLookup NORMAL</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper<span class="number">2</span></span><br></pre></td></tr></table></figure>
-
-<p>可以看到只不过自己手动执行了一个superclass，然后赋值然后进行执行。可以借用非arm64的汇编看得更清楚</p>
-<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">/********************************************************************</span></span><br><span class="line"><span class="comment"> * id objc_msgSendSuper2(struct objc_super *super, SEL op, ...)</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * struct objc_super &#123;</span></span><br><span class="line"><span class="comment"> *     id receiver;</span></span><br><span class="line"><span class="comment"> *     Class cls;    // SUBCLASS of the class to search</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> ********************************************************************/</span></span><br><span class="line">    </span><br><span class="line">    ENTRY _objc_msgSendSuper2</span><br><span class="line">    MESSENGER_START</span><br><span class="line">    </span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    CacheLookup NORMAL</span><br><span class="line">    <span class="comment">// cache hit, IMP in r12, eq already set for nonstret forwarding</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_FAST</span><br><span class="line">    bx    r12            <span class="comment">// call imp</span></span><br><span class="line"></span><br><span class="line">    CacheLookup2 NORMAL</span><br><span class="line">    <span class="comment">// cache miss</span></span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_SLOW</span><br><span class="line">    b    __objc_msgSend_uncached</span><br><span class="line">    </span><br><span class="line">    END_ENTRY _objc_msgSendSuper2</span><br></pre></td></tr></table></figure>
-
-<p>结构体的第二个参数就是自己的class了，不过内部执行会取出superclass作为方法的搜索起始值。其实就是包装了一层。和我们之前理解的原理其实没有太大出入</p>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>我们基本理清了super 发送消息到底做了什么事，其实只用搞清楚函数内部的self其实是消息接受者就可以了。剩下就是弄清函数接受者是谁就一切很清晰明了</p>
+    <title>摄影入门</title>
+    <url>/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>因为最近生活中有一些拍照需求，又觉得手机拍的不是那么好。所以一冲动入了相机的坑，在看了一大堆测评之后先买了个xs10 1680套机玩了玩，后面又由于需要拍人像(女朋友)，需要定焦大光圈，又入了个35 1.4。出去旅游的时候拍了不少，确实也出了一些不错的照片。但是都是靠量取胜，完全没有构图、色彩、以及一些其他参数的概念，而是靠着模特底子好以及数量还有大光圈取胜。总觉得这件事就和写代码一样，每次按快门之前应该会有一些自己的思考，于是决定从头系统的学一学摄影这件事</p>
+<h4 id="成像原理"><a href="#成像原理" class="headerlink" title="成像原理"></a>成像原理</h4><p>虽然我买的是微单(听说这是后来的趋势)，但是也可以从<strong><em>单反的成像原理</em></strong>来说</p>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A81.png" alt="摄影入门"></p>
+<p>本质来说，摄影就是把光信号最终通过一些元件来转化成电子信号保存起来当图片的过程，最终呈现的结果其实就是感光器按下快门这一刻所进的光。例如上图，在光线进入，通过反光板折射的目镜时，我们就可以通过取景器看到我们想拍的东西。但是这并不是最终我们得到的图片，因为在我们按下快门的一瞬间，只会发反光板抬起来，让光线传递到感光器，从而形成我们拍摄的图片。</p>
+<p><strong><em>微单（无反）的成像原理</em></strong></p>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A82.png" alt="摄影入门"></p>
+<p>相对于来说单反来说，无反并没有反光板这个部件，取代的是ccd电子元件。没有反光板，所以叫无反相机。ccd相当于反光板来说，更加可靠和快速，并且这是机械部件到电子部件的跨越。从而因为有了ccd，也可以直接通过信号处理转化到显示屏上(屏幕取景器)上。</p>
+<h4 id="曝光的三要素"><a href="#曝光的三要素" class="headerlink" title="曝光的三要素"></a>曝光的三要素</h4><p>在之前我们说了，摄影的本质其实就是把这一刻进的光转化成图片的过程，所以这一刻的进光量就很关键，我们有个专业名词，叫做<strong><u>曝光</u></strong>，然后曝光又由3个很关键的三要素组成</p>
+<ul>
+<li><p><em>光圈</em>  : <a href="https://baike.baidu.com/item/光圈/94964?fr=aladdin" target="_blank" rel="noopener">光圈</a>是一个用来控制光线透过镜头，进入机身内感光面光量的装置,就可以理解为他管理着进光口的大小，越大，单位时间内获得的光就越多。 表示光圈大小用F数表示,例如我的1680的套头的光圈就是F4，而35 1.4镜头的光圈是F1.4,要注意的是F后面数字越大，进光量越小，是一个反比关系。</p>
+<blockquote>
+<p>光圈的作用在于决定镜头的进光量。在快门不变的情况下：</p>
+<p>F后面的数值越小，光圈越大，进光量越多，画面比较亮，焦平面越窄，主体背景虚化越大；</p>
+<p>F后面的数值越大，光圈越小，进光量越少，画面比较暗，焦平面越宽，主体前后越清晰。</p>
+</blockquote>
+<p>所以我们拍人文一般都是大光圈，虚化背景，突出人物</p>
+</li>
+<li><p><em>快门</em> : <a href="https://baike.baidu.com/item/快门/82245?fr=aladdin" target="_blank" rel="noopener">快门</a>（shutter）是摄像器材中用来控制光线照射感光元件时间的装置。他控制着单次快门下进光的时间，快门速度越快，越可以抓住极速的物体。反之越慢就会有一些光的残影和运动轨迹。这并不代表快门越快越好，快门的快慢都有不同的利用场景，例如慢快门就可以拿来记录晚上城市道路上的车水马龙，假设我们拍一辆车子，定了快门时间2s。我们就可以拍出这辆车2s内的灯光的运动轨迹</p>
+</li>
+<li><p><em>感光度</em> : <a href="https://baike.baidu.com/item/感光度/2577807?fr=aladdin" target="_blank" rel="noopener">感光度</a>，又称为ISO值，是衡量底片对于光的灵敏程度。光在经过光圈和快门控制后，最终要通过感光元件。这个程度也会影响着最终成像的结果,感光度越小，最终成像越细腻。反之噪点越大</p>
+</li>
+</ul>
+<p>我们可以用一个简单的图来更加通俗的说明这件事</p>
+<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A83.png" alt="摄影入门"></p>
+<p>我们把单次打开水龙头和关闭水龙头这一组动作理解成按一次快门</p>
+<p>水管宽度理解成光圈，越宽，进水(光)量越多</p>
+<p>最终经过滤网(感光度)，拿到这次接到所有的水(光)。滤网越小(指的是孔)，水越细腻，越大杂质越多(燥点)</p>
+<h4 id="曝光补偿"><a href="#曝光补偿" class="headerlink" title="曝光补偿"></a>曝光补偿</h4><p>曝光补偿指的是一种描述，当我们在取景器看到图片亮度不够的时候，我们可以告诉相机当前曝光有所欠缺。</p>
+<p>当曝光补偿=0时，相机认为这样的曝光刚刚好，曝光补偿=-3时，相机认为这样的曝光欠曝三个单位。就会在最终成像上修正光的亮度</p>
+<h4 id="常用的三个档位"><a href="#常用的三个档位" class="headerlink" title="常用的三个档位"></a>常用的三个档位</h4><p>在相机上，有一个专门的拨盘来控制着拍摄的模式(档位)</p>
+<ul>
+<li><strong><em>手动</em></strong>  光圈快门感光度全部自己设定，适合非常老手的玩家，因为最终的进光量的3个参数都由自己控制，很容易过爆或者曝光不足</li>
+<li><strong><em>光圈优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制光圈，剩下让相机自己对应修正，例如光线不好，相机就会降低快门速度和提高iso。控制光圈就影响着最终的景深</li>
+<li><strong><em>快门优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制快门速度，剩下的让相机自己对应修正。控制快门速度影响着拍摄的时间，和成像的质量(是否有光的轨迹)</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实这些是一些非常理论的知识，通过学了这些之后之前拍摄遇到的一些问题可算豁然开朗。然后最终成像的三要素曝光只是其中之一,还有<strong>对焦</strong>和<strong>构图</strong>。对焦打算先放一放，因为现在的相机的对焦都非常智能了，可能下一步需要学习的就是构图。</p>
 ]]></content>
       <categories>
-        <category>原理分析</category>
+        <category>摄影</category>
       </categories>
   </entry>
   <entry>
@@ -1410,6 +1498,43 @@
       </categories>
   </entry>
   <entry>
+    <title>向super发消息</title>
+    <url>/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/</url>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客</p>
+<h4 id="objc-msgSendSuper"><a href="#objc-msgSendSuper" class="headerlink" title="objc_msgSendSuper"></a>objc_msgSendSuper</h4><p>首先验证下自己的猜想，建2个类，写出需要的代码。</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">int main(int argc, const char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        </span><br><span class="line">        Girl *g &#x3D; [[Girl alloc] init];</span><br><span class="line">        [g test];</span><br><span class="line">    &#125;</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">@implementation Girl</span><br><span class="line">- (void)test &#123;</span><br><span class="line">    [super test];</span><br><span class="line">&#125;</span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
+
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF1.png" alt="向super发消息"></p>
+<p>果然不出所料，打印结果如下。为了弄清楚为什么，还是老办法，编译成c++。</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">void</span> _I_Girl_test(Girl * self, SEL _cmd) &#123;</span><br><span class="line">    ((<span class="keyword">void</span> (*)(__rw_objc_super *, SEL))(<span class="keyword">void</span> *)objc_msgSendSuper)((__rw_objc_super)&#123;(id)self, (id)class_getSuperclass(objc_getClass(<span class="string">"Girl"</span>))&#125;, sel_registerName(<span class="string">"test"</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> __<span class="title">rw_objc_super</span> &#123;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">object</span>;</span> </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">objc_object</span> *<span class="title">superClass</span>;</span> </span><br><span class="line">    __rw_objc_super(struct objc_object *o, struct objc_object *s) : object(o), superClass(s) &#123;&#125; </span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>其实弄清楚了就是调用了objc_msgSendSuper函数，然后2个参数，第一个参数是一个__rw_objc_super的结构体，还有一个就是方法的sel。</p>
+<p>然后__rw_objc_super2个成员一个是自己当前的对象，另外一个是自己的父类对象。</p>
+<p>但是觉得还是不够清晰，所以还是去看下objc_msgSendSuper的源码，很不幸，汇编实现的。而且描述得也不是很清楚</p>
+<figure class="highlight llvm"><table><tr><td class="code"><pre><span class="line">ENTRY _objc_msgSendSuper</span><br><span class="line">UNWIND _objc_msgSendSuper, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">CacheLookup NORMAL        // calls imp <span class="keyword">or</span> objc_msgSend_uncached</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper</span><br></pre></td></tr></table></figure>
+
+<p>就看到取了16个字节放到x0和x16，注释说x0是真正的消息接收者。x16是类，其实这个x0就是上面的objcet也就是girl对象。然后x16类就是父类。然后去执行函数去了。另外可以在苹果的注释也可以看到</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">/** </span></span><br><span class="line"><span class="comment"> * Sends a message with a simple return value to the superclass of an instance of a class.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @param super A pointer to an \c objc_super data structure. Pass values identifying the</span></span><br><span class="line"><span class="comment"> *  context the message was sent to, including the instance of the class that is to receive the</span></span><br><span class="line"><span class="comment"> *  message and the superclass at which to start searching for the method implementation.</span></span><br><span class="line"><span class="comment"> * @param op A pointer of type SEL. Pass the selector of the method that will handle the message.</span></span><br><span class="line"><span class="comment"> * @param ...</span></span><br><span class="line"><span class="comment"> *   A variable argument list containing the arguments to the method.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @return The return value of the method identified by \e op.</span></span><br><span class="line"><span class="comment"> * </span></span><br><span class="line"><span class="comment"> * @see objc_msgSend</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">OBJC_EXPORT id _Nullable</span><br><span class="line">objc_msgSendSuper(struct objc_super * _Nonnull super, SEL _Nonnull op, ...)</span><br><span class="line">    OBJC_AVAILABLE(<span class="number">10.0</span>, <span class="number">2.0</span>, <span class="number">9.0</span>, <span class="number">1.0</span>, <span class="number">2.0</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/// Specifies the superclass of an instance. </span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">objc_super</span> &#123;</span></span><br><span class="line">    <span class="comment">/// Specifies an instance of a class.</span></span><br><span class="line">    __unsafe_unretained _Nonnull id receiver;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/// Specifies the particular superclass of the instance to message. </span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> !defined(__cplusplus)  &amp;&amp;  !__OBJC2__</span></span><br><span class="line">    <span class="comment">/* For compatibility with old objc-runtime.h header */</span></span><br><span class="line">    __unsafe_unretained _Nonnull Class <span class="class"><span class="keyword">class</span>;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">    __unsafe_unretained _Nonnull Class super_class;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    <span class="comment">/* super_class is the first class to search */</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>其实这个结构体的对象的第一个变量是消息接受者。然后第二个类只是说明到时候找imp的时候是从哪个类的实现开始找。</p>
+<p>另外要说一点的是oc所有的方法的本质都是转换成objc_msgSend来做的调用，然后固定有2个参数，第1个是消息接受者。也就是我们函数里敲出来的self。所以在刚入门iOS的时候理解成函数当前的对象和类是没问题的，但是本质这个self其实是默认参数消息接受者。第二个参数是_cmd，类型就是SEL类型。如果需要其他参数则是放到后续的寄存器存放的。</p>
+<p>所以我们也理解到了，调用super只不过是从父类去查找方法而已，然后消息接受者还是自己。</p>
+<h4 id="objc-msgSendSuper2"><a href="#objc-msgSendSuper2" class="headerlink" title="objc_msgSendSuper2"></a>objc_msgSendSuper2</h4><p>有一点要说明，用clang转换成c++并不是百分之百的准确，但是也足够帮我们了解底层了。例如上面调用super我们编译出来显示执行的是objc_msgSendSuper,但是事实其实有出入。我们直接打断点查看</p>
+<p><img src="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF2.png" alt="向super发消息"></p>
+<p>尽管是x86的汇编，我们依然也可看到，最后调用的是objc_msgSendSuper2。查看源码，还是汇编。</p>
+<figure class="highlight llvm"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line">ENTRY _objc_msgSendSuper<span class="number">2</span></span><br><span class="line">UNWIND _objc_msgSendSuper<span class="number">2</span>, NoFrame</span><br><span class="line">MESSENGER_START</span><br><span class="line"></span><br><span class="line">ldp    <span class="keyword">x</span><span class="number">0</span>, <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">0</span>]        // <span class="keyword">x</span><span class="number">0</span> = real receiver, <span class="keyword">x</span><span class="number">16</span> = class</span><br><span class="line">ldr    <span class="keyword">x</span><span class="number">16</span>, [<span class="keyword">x</span><span class="number">16</span>, #SUPERCLASS]    // <span class="keyword">x</span><span class="number">16</span> = class-&gt;superclass</span><br><span class="line">CacheLookup NORMAL</span><br><span class="line"></span><br><span class="line">END_ENTRY _objc_msgSendSuper<span class="number">2</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到只不过自己手动执行了一个superclass，然后赋值然后进行执行。可以借用非arm64的汇编看得更清楚</p>
+<figure class="highlight c++"><table><tr><td class="code"><pre><span class="line"><span class="comment">/********************************************************************</span></span><br><span class="line"><span class="comment"> * id objc_msgSendSuper2(struct objc_super *super, SEL op, ...)</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * struct objc_super &#123;</span></span><br><span class="line"><span class="comment"> *     id receiver;</span></span><br><span class="line"><span class="comment"> *     Class cls;    // SUBCLASS of the class to search</span></span><br><span class="line"><span class="comment"> * &#125;</span></span><br><span class="line"><span class="comment"> ********************************************************************/</span></span><br><span class="line">    </span><br><span class="line">    ENTRY _objc_msgSendSuper2</span><br><span class="line">    MESSENGER_START</span><br><span class="line">    </span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    CacheLookup NORMAL</span><br><span class="line">    <span class="comment">// cache hit, IMP in r12, eq already set for nonstret forwarding</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_FAST</span><br><span class="line">    bx    r12            <span class="comment">// call imp</span></span><br><span class="line"></span><br><span class="line">    CacheLookup2 NORMAL</span><br><span class="line">    <span class="comment">// cache miss</span></span><br><span class="line">    ldr    r9, [r0, #CLASS]    <span class="comment">// class = struct super-&gt;class</span></span><br><span class="line">    ldr    r9, [r9, #SUPERCLASS]   <span class="comment">// class = class-&gt;superclass</span></span><br><span class="line">    ldr    r0, [r0, #RECEIVER]    <span class="comment">// load real receiver</span></span><br><span class="line">    MESSENGER_END_SLOW</span><br><span class="line">    b    __objc_msgSend_uncached</span><br><span class="line">    </span><br><span class="line">    END_ENTRY _objc_msgSendSuper2</span><br></pre></td></tr></table></figure>
+
+<p>结构体的第二个参数就是自己的class了，不过内部执行会取出superclass作为方法的搜索起始值。其实就是包装了一层。和我们之前理解的原理其实没有太大出入</p>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>我们基本理清了super 发送消息到底做了什么事，其实只用搞清楚函数内部的self其实是消息接受者就可以了。剩下就是弄清函数接受者是谁就一切很清晰明了</p>
+]]></content>
+      <categories>
+        <category>原理分析</category>
+      </categories>
+  </entry>
+  <entry>
     <title>构图初步学习</title>
     <url>/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/</url>
     <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在掌握了基础的光线之后，构图作为拍摄三要素之一也很重要。构图简单来理解就是我们在相框里的要摆放什么，他们的相对位置是怎么样的，从什么角度去拍摄他们。所谓”横看成岭侧成峰”其实就可以理解我们构图的一部分，但是作为没有任何美术基础和审美基础的死宅男。学习这一部分真的很困难，只能死记硬背然后多看举一反三了。写这篇博客也只是为了做一个简单的笔记</p>
@@ -1471,50 +1596,6 @@
 <p><img src="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A08.png" alt="构图初步学习1"></p>
 <h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>老师说其实构图<strong>把一些东西，遵照一定的目的性，有美感的摆放在一张有边界的图中</strong>，但是我还是做不好这件事。只能多尝试多学习，多看，多拍。</p>
 <p>​           </p>
-]]></content>
-      <categories>
-        <category>摄影</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>摄影入门</title>
-    <url>/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>因为最近生活中有一些拍照需求，又觉得手机拍的不是那么好。所以一冲动入了相机的坑，在看了一大堆测评之后先买了个xs10 1680套机玩了玩，后面又由于需要拍人像(女朋友)，需要定焦大光圈，又入了个35 1.4。出去旅游的时候拍了不少，确实也出了一些不错的照片。但是都是靠量取胜，完全没有构图、色彩、以及一些其他参数的概念，而是靠着模特底子好以及数量还有大光圈取胜。总觉得这件事就和写代码一样，每次按快门之前应该会有一些自己的思考，于是决定从头系统的学一学摄影这件事</p>
-<h4 id="成像原理"><a href="#成像原理" class="headerlink" title="成像原理"></a>成像原理</h4><p>虽然我买的是微单(听说这是后来的趋势)，但是也可以从<strong><em>单反的成像原理</em></strong>来说</p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A81.png" alt="摄影入门"></p>
-<p>本质来说，摄影就是把光信号最终通过一些元件来转化成电子信号保存起来当图片的过程，最终呈现的结果其实就是感光器按下快门这一刻所进的光。例如上图，在光线进入，通过反光板折射的目镜时，我们就可以通过取景器看到我们想拍的东西。但是这并不是最终我们得到的图片，因为在我们按下快门的一瞬间，只会发反光板抬起来，让光线传递到感光器，从而形成我们拍摄的图片。</p>
-<p><strong><em>微单（无反）的成像原理</em></strong></p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A82.png" alt="摄影入门"></p>
-<p>相对于来说单反来说，无反并没有反光板这个部件，取代的是ccd电子元件。没有反光板，所以叫无反相机。ccd相当于反光板来说，更加可靠和快速，并且这是机械部件到电子部件的跨越。从而因为有了ccd，也可以直接通过信号处理转化到显示屏上(屏幕取景器)上。</p>
-<h4 id="曝光的三要素"><a href="#曝光的三要素" class="headerlink" title="曝光的三要素"></a>曝光的三要素</h4><p>在之前我们说了，摄影的本质其实就是把这一刻进的光转化成图片的过程，所以这一刻的进光量就很关键，我们有个专业名词，叫做<strong><u>曝光</u></strong>，然后曝光又由3个很关键的三要素组成</p>
-<ul>
-<li><p><em>光圈</em>  : <a href="https://baike.baidu.com/item/光圈/94964?fr=aladdin" target="_blank" rel="noopener">光圈</a>是一个用来控制光线透过镜头，进入机身内感光面光量的装置,就可以理解为他管理着进光口的大小，越大，单位时间内获得的光就越多。 表示光圈大小用F数表示,例如我的1680的套头的光圈就是F4，而35 1.4镜头的光圈是F1.4,要注意的是F后面数字越大，进光量越小，是一个反比关系。</p>
-<blockquote>
-<p>光圈的作用在于决定镜头的进光量。在快门不变的情况下：</p>
-<p>F后面的数值越小，光圈越大，进光量越多，画面比较亮，焦平面越窄，主体背景虚化越大；</p>
-<p>F后面的数值越大，光圈越小，进光量越少，画面比较暗，焦平面越宽，主体前后越清晰。</p>
-</blockquote>
-<p>所以我们拍人文一般都是大光圈，虚化背景，突出人物</p>
-</li>
-<li><p><em>快门</em> : <a href="https://baike.baidu.com/item/快门/82245?fr=aladdin" target="_blank" rel="noopener">快门</a>（shutter）是摄像器材中用来控制光线照射感光元件时间的装置。他控制着单次快门下进光的时间，快门速度越快，越可以抓住极速的物体。反之越慢就会有一些光的残影和运动轨迹。这并不代表快门越快越好，快门的快慢都有不同的利用场景，例如慢快门就可以拿来记录晚上城市道路上的车水马龙，假设我们拍一辆车子，定了快门时间2s。我们就可以拍出这辆车2s内的灯光的运动轨迹</p>
-</li>
-<li><p><em>感光度</em> : <a href="https://baike.baidu.com/item/感光度/2577807?fr=aladdin" target="_blank" rel="noopener">感光度</a>，又称为ISO值，是衡量底片对于光的灵敏程度。光在经过光圈和快门控制后，最终要通过感光元件。这个程度也会影响着最终成像的结果,感光度越小，最终成像越细腻。反之噪点越大</p>
-</li>
-</ul>
-<p>我们可以用一个简单的图来更加通俗的说明这件事</p>
-<p><img src="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A83.png" alt="摄影入门"></p>
-<p>我们把单次打开水龙头和关闭水龙头这一组动作理解成按一次快门</p>
-<p>水管宽度理解成光圈，越宽，进水(光)量越多</p>
-<p>最终经过滤网(感光度)，拿到这次接到所有的水(光)。滤网越小(指的是孔)，水越细腻，越大杂质越多(燥点)</p>
-<h4 id="曝光补偿"><a href="#曝光补偿" class="headerlink" title="曝光补偿"></a>曝光补偿</h4><p>曝光补偿指的是一种描述，当我们在取景器看到图片亮度不够的时候，我们可以告诉相机当前曝光有所欠缺。</p>
-<p>当曝光补偿=0时，相机认为这样的曝光刚刚好，曝光补偿=-3时，相机认为这样的曝光欠曝三个单位。就会在最终成像上修正光的亮度</p>
-<h4 id="常用的三个档位"><a href="#常用的三个档位" class="headerlink" title="常用的三个档位"></a>常用的三个档位</h4><p>在相机上，有一个专门的拨盘来控制着拍摄的模式(档位)</p>
-<ul>
-<li><strong><em>手动</em></strong>  光圈快门感光度全部自己设定，适合非常老手的玩家，因为最终的进光量的3个参数都由自己控制，很容易过爆或者曝光不足</li>
-<li><strong><em>光圈优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制光圈，剩下让相机自己对应修正，例如光线不好，相机就会降低快门速度和提高iso。控制光圈就影响着最终的景深</li>
-<li><strong><em>快门优先（自动档）</em></strong> 通过曝光补偿来修正最终进了多少光，只控制快门速度，剩下的让相机自己对应修正。控制快门速度影响着拍摄的时间，和成像的质量(是否有光的轨迹)</li>
-</ul>
-<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实这些是一些非常理论的知识，通过学了这些之后之前拍摄遇到的一些问题可算豁然开朗。然后最终成像的三要素曝光只是其中之一,还有<strong>对焦</strong>和<strong>构图</strong>。对焦打算先放一放，因为现在的相机的对焦都非常智能了，可能下一步需要学习的就是构图。</p>
 ]]></content>
       <categories>
         <category>摄影</category>
@@ -1665,9 +1746,99 @@
       </categories>
   </entry>
   <entry>
+    <title>编译速度优化实践</title>
+    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
+<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
+<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
+<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
+</li>
+<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
+<blockquote>
+<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
+</blockquote>
+</li>
+</ul>
+<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
+<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
+<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
+<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
+<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
+<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
+<blockquote>
+<ol>
+<li>修改项目的build settings</li>
+<li>精简build phases</li>
+<li>调整源码</li>
+</ol>
+</blockquote>
+<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
+
+<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
+
+<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
+
+<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
+<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
+<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
+<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
+]]></content>
+      <categories>
+        <category>项目优化</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>逆向笔记一</title>
+    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
+    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
+<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
+<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
+<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
+</li>
+<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
+</li>
+<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
+<hr>
+</li>
+</ul>
+<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
+<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
+<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
+<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
+<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
+</ul>
+<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
+<ol>
+<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
+<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
+<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
+<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
+<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
+<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
+<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
+<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
+<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
+<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
+<li>写完之后做验证以及写好Tweak</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
+<ul>
+<li><input disabled type="checkbox"> </li>
+</ul>
+]]></content>
+      <categories>
+        <category>逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>首页重构</title>
     <url>/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/%E9%A6%96%E9%A1%B5%E9%87%8D%E6%9E%84/</url>
-    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>2季度我主要的任务也是做一个首页的重构，伴随着2季度的结束，也终于有时间来对这个方面来做一个总结</p>
+    <content><![CDATA[<h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>上半年我主要的任务也是做一个首页的重构，伴随着2季度的结束，也终于有时间来对这个方面来做一个总结</p>
 <h4 id="现存的问题"><a href="#现存的问题" class="headerlink" title="现存的问题"></a>现存的问题</h4><ul>
 <li><strong><em>字典软编码</em></strong>  大量后台数据回来不做本地解析，直接用字典进行操作。 这样做首先编译器没有任何提示，拥有敲错的隐患，而且开发效率不高。 另外在字典写以及传值中经常会变成可变字典。导致多个环境中本来应该共享的数据其实并不是同一份。而解析成本地的对象直接对对象进行操作可以很好的弥补这一点</li>
 <li><strong><em>没有任何代码架构</em></strong>   由于首页已经迭代了5年，每个开发的水平又不一样。所以各种所谓的MVC和MVVM混用，导致难以迭代</li>
@@ -1758,96 +1929,6 @@
 ]]></content>
       <categories>
         <category>工作总结</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>编译速度优化实践</title>
-    <url>/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>项目跑了4年了，开发人员之前又多，业务又重。最近又遭到测试的投诉，说打包一次50min，觉得实在有点夸张，所以做一下编译的加速。特别是针对jenkins</p>
-<h3 id="时间测量"><a href="#时间测量" class="headerlink" title="时间测量"></a>时间测量</h3><ul>
-<li><p>​    Xcode保留了每次编译的日志，可以在Report Navigator中很快地找到</p>
-<p>   <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigator.png" alt="reportNavigator"></p>
-</li>
-<li><p>​    在 Xcode 的 activity viewer 中显示编译时间, 开启这个选项需要在命令行中执行以下命令：</p>
-<blockquote>
-<p>  defaults write com.apple.dt.Xcode ShowBuildOperationDuration YES</p>
-</blockquote>
-</li>
-</ul>
-<p>编译成功后，编译时间将显示在 Succeeded 后面，如下图所示。<br>      <img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/success.png" alt="success"><br>​      </p>
-<h3 id="耗时分析"><a href="#耗时分析" class="headerlink" title="耗时分析"></a>耗时分析</h3><p>通过 <code>Xcode</code> 的 <code>Build With Timing Summary</code> 可以看到在编译过程中各个阶段的耗时, <code>Product &gt; Perform Action &gt; Build with Timing Summary</code> 或者 <code>xcodebuild -buildWithTimingSummary</code>。</p>
-<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/buildTimingSummary.png" alt="buildTimingSummary"></p>
-<p>在 <code>Report Navigator</code> 中可以看到下面的时间统计</p>
-<p><img src="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/reportNavigatorDetail.png" alt="reportNavigatorDetail"></p>
-<p>可以看到 <code>CompileSoryboard</code>  <code>CompileC</code>、<code>CompileXIB</code> 花费了大量时间。<br><code>通过查看编译日志发现，PhaseScriptExecution</code> 阶段有重复的和可以精简的 <code>phase</code>。</p>
-<p>由于项目很老，领导需要得到一个快速的结果，而且也要保证业务的稳定性，所以暂时不对xib和sb做处理，只是要求以后尽量少用。所以在下面几个方面来优化处理</p>
-<blockquote>
-<ol>
-<li>修改项目的build settings</li>
-<li>精简build phases</li>
-<li>调整源码</li>
-</ol>
-</blockquote>
-<h3 id="修改build-settings"><a href="#修改build-settings" class="headerlink" title="修改build settings"></a>修改build settings</h3><h5 id="Architectures"><a href="#Architectures" class="headerlink" title="Architectures"></a>Architectures</h5><p>该选项代表的编译生成的包对应的架构，默认值是$ARCHS_STANDARD，在Xcode11的表现下就是armv7 arm64。但是在给测试jenkins打包时我们并不需要总是打一个fat binary,毕竟armv7的机器还是少数，可以提供一个开关给测试。默认打arm64的单架构包。在xcodebuild的指令对应的值就是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">if [ "$Iphone5sFollowingModels"x == "true"x ];</span><br><span class="line">then</span><br><span class="line">arch='armv7 arm64'</span><br><span class="line">else</span><br><span class="line">arch='arm64'</span><br><span class="line">fi</span><br><span class="line">xcodebuild archive xxxxx ARCHS=$arch</span><br></pre></td></tr></table></figure>
-
-<h5 id="Optimization-Level-SWIFT-OPTIMIZATION-LEVEL"><a href="#Optimization-Level-SWIFT-OPTIMIZATION-LEVEL" class="headerlink" title="Optimization Level (SWIFT_OPTIMIZATION_LEVEL)"></a>Optimization Level (SWIFT_OPTIMIZATION_LEVEL)</h5><p>优化级别设置定义了优化构建的方式。由于优化过程涉及额外的工作，因此代码优化会导致构建时间变慢。release上默认是<strong>Fastest, Smallest[-Os]</strong>，但是在发往appstore的包，面向受众是用户，所以无可厚非。在jenkins中受众是我们的同事，所以无需做这些优化让编译器的cost增加。选用<strong>None</strong>就好，在xcodebuild的指令对应的就是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">GCC_OPTIMIZATION_LEVEL=0</span><br><span class="line">GCC_OPTIMIZATION_LEVEL=s</span><br></pre></td></tr></table></figure>
-
-<h5 id="Debug-Information-Format-DEBUG-INFORMATION-FORMAT"><a href="#Debug-Information-Format-DEBUG-INFORMATION-FORMAT" class="headerlink" title="Debug Information Format (DEBUG_INFORMATION_FORMAT)"></a>Debug Information Format (DEBUG_INFORMATION_FORMAT)</h5><p>包含用于符号化和解释崩溃报告的调试信息。Release 配置下应该始终创建此文件，Debug 配置下无需生成此文件，对应的指令是</p>
-<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">DEBUG_INFORMATION_FORMAT=dwarf-with-dsym</span><br><span class="line">DEBUG_INFORMATION_FORMAT=dwarf</span><br></pre></td></tr></table></figure>
-
-<p>其实做完这几个编译速度就很明显了，我们项目中有接近50%的提升</p>
-<h3 id="调整源码"><a href="#调整源码" class="headerlink" title="调整源码"></a>调整源码</h3><h5 id="pod二进制化"><a href="#pod二进制化" class="headerlink" title="pod二进制化"></a>pod二进制化</h5><p>很早之前就打算做这个件事，因为这个优化是对我们开发的编译速度也有提升的，也是对我们项目组件化的进一步提升</p>
-<p>我们用的方案是二进制双私有源，采用的方案是用的<a href="https://github.com/MeetYouDevs/cocoapods-imy-bin" target="_blank" rel="noopener">imy-bin</a>,用起来挺方便的，不过吐槽一下。作者的这个项目真的不像开源的样子，提的issue全是直接关闭，给不了解决方案，走了很多坑最后还是跑起来了。</p>
-<p>到最后把项目中现有的pod公有库私有库全部二进制化了，直接效果是编译的task从7000+变成了6000+。编译速度提高了百分之9左右，算达到想象中的效果，并且最重要的是，未来可期</p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>结合上面这些做法之后，我们的在jenkins上的打包速度提高了大概60%，而且我们之前用的打包机器也比较差，顺便也用了启用了另外一台打包机器，最好的加速果然是物理加速，从最开始最慢的打包需要2400s，到现在的500多s.也得到了测试的认可，并且接下来随着二进制化的增加，这个速度会越来越夸张！</p>
-]]></content>
-      <categories>
-        <category>项目优化</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>逆向笔记一</title>
-    <url>/%E9%80%86%E5%90%91/%E9%80%86%E5%90%91%E7%AC%94%E8%AE%B0%E4%B8%80/</url>
-    <content><![CDATA[<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>接触了一段时间逆向，做了2个项目，但是接下来可能要有一段时间不会接触这方面的工作了。以防忘记，做一个简短的笔记来记录一下大概的流程。毕竟好记性不如烂笔头</p>
-<h3 id="工欲善其事必先利其器"><a href="#工欲善其事必先利其器" class="headerlink" title="工欲善其事必先利其器"></a>工欲善其事必先利其器</h3><p>主要分为硬件和软件(包括环境配置)部分</p>
-<h6 id="硬件"><a href="#硬件" class="headerlink" title="硬件"></a>硬件</h6><ul>
-<li><p>越狱手机一只，建议越狱系统新一些的，毕竟有些应用的最新版本已经不支持老的系统版本了，逆向的代码相当于也是老版本的</p>
-</li>
-<li><p>mac一部，黑苹果也可，所有的逆向的代码还是要依赖于XCode</p>
-</li>
-<li><p>windows电脑一台(可选)，如果mac的配置足够优秀，或者时间不是很赶可以不用。只是单纯拿来做反汇编用，腾出自己的mac做其他的分析或者编码工作</p>
-<hr>
-</li>
-</ul>
-<h6 id="软件"><a href="#软件" class="headerlink" title="软件"></a>软件</h6><ul>
-<li>反汇编软件,IDA,Hooper、MachOView、电脑端的reveal</li>
-<li>手机上的一些动态调试插件,reveal、cycript、debugserver的环境、Flex、以及需要逆向的app</li>
-<li>电脑上对应的环境，frida、class-dump、cycript、monkeyDev(大幅度提升效率)、IDA的一些插件，例如restore_symbol…</li>
-<li>编译器，Xcode、sublime Text(方便我们看头文件)</li>
-</ul>
-<h3 id="个人操作步骤"><a href="#个人操作步骤" class="headerlink" title="个人操作步骤"></a>个人操作步骤</h3><p>只代表个人观点，自己水平也只是勉强入门，所以谨代表个人的一些习惯</p>
-<ol>
-<li>自己会先把玩一些对应的应用，操作一下的对应的功能。因为自己是做正向开发的。玩的时候代入一些自己的思路</li>
-<li>砸壳,逆向必不可少。个人倾向用frida-iOS-dump砸，查看加密信息看砸壳是否成功</li>
-<li>Class-dump导入头文件，并且用sublime打开，方便后续查找文件和代码</li>
-<li>反汇编，个人习惯是用IDA和hooper一样弄一份，因为自己有2台电脑不耽误。</li>
-<li>在反汇编的过程中会做一些简单的动态调试，flex配合cycript用，flex做一些简单的动态调试真的很好用，简单，不需要写代码。一个手机即可，很方便在地铁做这些事情</li>
-<li>符号表恢复，利用restore_symbol工具，顺便利用IDA的脚本把block的符号表也恢复掉。方便断点和静态分析</li>
-<li>替换完处理好的包之后直接用monkeyDev来跑到真机上来做后续的调试</li>
-<li>静态调试和动态分析配合起来做分析和调试。需要往上查看调用栈就打断点、动态调试，需要往下看调用栈就只能静态分析。</li>
-<li>静态分析不建议硬磕汇编，可以利用好f5的功能，但是不能过度依赖</li>
-<li>调试过程中利用logs写日志、断点、以及配合头文件来做调试和验证</li>
-<li>写完之后做验证以及写好Tweak</li>
-</ol>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>其实这只是一篇简单的日记，来梳理下自己的流程，在做完了2个项目之后，对有些正向开发的底层有了更一步的了解。虽然在读汇编的过程中头皮发麻，不过最终完成的时候真的非常畅快。后续会继续在这方便做进一步的学习</p>
-<ul>
-<li><input disabled type="checkbox"> </li>
-</ul>
-]]></content>
-      <categories>
-        <category>逆向</category>
       </categories>
   </entry>
 </search>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+<script src="//cdn.bootcss.com/pace/1.0.2/pace.min.js"></script>
+<link href="//cdn.bootcss.com/pace/1.0.2/themes/pink/pace-theme-flash.css" rel="stylesheet">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.jpg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.jpg">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.jpg">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"qingheblog.online","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":40,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言 在前面一期说过我们做了webview的离线化，但是为了测速以及量化项目的结果，所以我们必须得对数据做一个采集并且分析，关于数据手机这块我们是通过h5的performance模块拿到对应的webview的阶段数据，然后上报到apm，然后在kibanan上统一查看。  数据采集 在数据采集这块我们需要做的事是必须保持开启离线化和未开启离线化的对照数据的纯粹性，控制好对应的变量。在其中一组中，我们">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Airtest的简单使用">
+<meta property="og:url" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言 在前面一期说过我们做了webview的离线化，但是为了测速以及量化项目的结果，所以我们必须得对数据做一个采集并且分析，关于数据手机这块我们是通过h5的performance模块拿到对应的webview的阶段数据，然后上报到apm，然后在kibanan上统一查看。  数据采集 在数据采集这块我们需要做的事是必须保持开启离线化和未开启离线化的对照数据的纯粹性，控制好对应的变量。在其中一组中，我们">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png">
+<meta property="og:image" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png?40">
+<meta property="article:published_time" content="2021-12-28T08:18:26.000Z">
+<meta property="article:modified_time" content="2021-12-28T10:08:21.979Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png">
+
+<link rel="canonical" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Airtest的简单使用 | 遇见青禾</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">遇见青禾</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">qingheblog.online</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类<span class="badge">8</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">30</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Airtest的简单使用
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-12-28 16:18:26 / 修改时间：18:08:21" itemprop="dateCreated datePublished" datetime="2021-12-28T16:18:26+08:00">2021-12-28</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/" itemprop="url" rel="index"><span itemprop="name">工作总结</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在前面一期说过我们做了webview的离线化，但是为了测速以及量化项目的结果，所以我们必须得对数据做一个采集并且分析，关于数据手机这块我们是通过h5的performance模块拿到对应的webview的阶段数据，然后上报到apm，然后在kibanan上统一查看。</p>
+<h4 id="数据采集"><a href="#数据采集" class="headerlink" title="数据采集"></a>数据采集</h4><p>在数据采集这块我们需要做的事是必须保持开启离线化和未开启离线化的对照数据的纯粹性，控制好对应的变量。在其中一组中，我们是测试应用首次加载web的速度，所以对于单个页面来说，我们要做的事应该是重复下面的这个流程</p>
+<p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A81.png" alt="Airtest的简单使用"></p>
+<p>对于我iOS来说，我的预期是7部不同的手机在两个不同的ipa包上起码跑50次的数据。由于我们测试部门没有人没做客户端的自动化，所以初步是打算让他们来手动执行上面这个流程。但是在开始执行的第一天我们就发现了一堆问题</p>
+<h4 id="手动测试出现的问题"><a href="#手动测试出现的问题" class="headerlink" title="手动测试出现的问题"></a>手动测试出现的问题</h4><p>在第一天测试组抽出了1个小时帮我们做这件事情，但是我们在后台发现数据各种漏报，有些失真。问了测试才知道有时候比较忙的时候会漏了卸载流程，有的直接卸载没有进入后台，有的时候2个包弄混了导致数据的数量没办法达到1比1。鉴于以上这些问题，以及我心疼测试组的小姐姐重复这些枯燥无趣的工作，所以决定把这部分做成自动化，而且可以遇见这些工作可能在优化一期二期三期都要去做的事情，鉴于之前做过monekyi的测试，所以说干就干</p>
+<h4 id="方案的尝试"><a href="#方案的尝试" class="headerlink" title="方案的尝试"></a>方案的尝试</h4><p>在初期，我是想直接通过XCUITest来做这个流程的工作的，但是不可行，因为虽然他可以通过XCode来进行测试脚本录制，但是并没有安装和卸载的api。然后经过一系列的探索，过程不表，后面发现appium以及阿里开源的tidevice可以结合起来做这件事。后面在和tidevice开源群中交流发现了airTest的更加易用，所以最后决定这么做</p>
+<h4 id="AirTest"><a href="#AirTest" class="headerlink" title="AirTest"></a>AirTest</h4><p><strong>AirTest</strong>是一个跨平台的、<strong>基于图像识别</strong>的UI自动化测试框架，适用于游戏和App，支持平台有Windows、Android和iOS,项目基于Python,所有脚本都是Python代码。配合AirTestIDE只需要会一些简单python就可以使用</p>
+<h4 id="AirTest的使用"><a href="#AirTest的使用" class="headerlink" title="AirTest的使用"></a>AirTest的使用</h4><p>airTest的大体使用可以分为以下几步</p>
+<ul>
+<li><p><a href="https://github.com/AirtestProject/iOS-Tagent" target="_blank" rel="noopener">iOS-Tagent</a>的安装 </p>
+<p>AirTest最终还是通过跑XCUITest来进行的响应操作，所以首先需要下载对应<a href="https://github.com/AirtestProject/iOS-Tagent" target="_blank" rel="noopener">iOS-Tagent</a> 来跑测试支持XCUITest,并且开启端口让所有的操作可以映射到pc上。将<a href="https://github.com/AirtestProject/iOS-Tagent" target="_blank" rel="noopener">iOS-Tagent</a> 成功运行到手机上后在Xcode的控制台上会有告知测试初始化成功，并且 <strong>ServerURLHere-&gt;<a href="http://127.0.0.1:8100" target="_blank" rel="noopener">http://127.0.0.1:8100</a>&lt;-ServerURLHere</strong> 之类的字样来告知服务部署工程。</p>
+</li>
+<li><p>启动代理，在命令行下执行<code>iproxy 8100 8100</code>运行代理后，可以在浏览器打开 <a href="http://127.0.0.1:8100/s" target="_blank" rel="noopener">http://127.0.0.1:8100/s</a> tatus，查看iOS设备是否能成功连接。</p>
+<p>iproxy是usbmuxd附带的一个小工具，它的作用是将设备的某个端口映射到电脑的某个端口。mac下可以通过brew安装 <code>brew install usbmuxd</code>。</p>
+</li>
+<li><p>通过AirTestIDE连接</p>
+<p>直接在IDE的device窗口上进行连接，接下来就可以看到对应手机的页面了</p>
+</li>
+</ul>
+<p><img src="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A82.png?40" alt="Airtest的简单使用"></p>
+<ul>
+<li><p>脚本的录制</p>
+<p>直接在点击脚本录制键，然后用鼠标在屏幕上操作，对应的脚本页面就会展示出对应的脚本代码，例如我的ui操作就是启动app-&gt;跳过启动页-&gt;跳转到测试web页-&gt;退出后台</p>
+</li>
+</ul>
+<h4 id="完整的闭环"><a href="#完整的闭环" class="headerlink" title="完整的闭环"></a>完整的闭环</h4><p>我最终的做法是把上面的脚本代码复制带pycharm里做的，因为Airtest还不支持iOS的包的安装卸载，所以这部分工作我是交给了tidevice来做，接下来整体的脱敏后的以及伪代码大概是这样的</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">t = tidevice.Device()</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">ui_test</span><span class="params">()</span>:</span></span><br><span class="line">    <span class="comment"># init airtest</span></span><br><span class="line">    auto_setup(__file__, devices=[<span class="string">"iOS:///http://127.0.0.1:8100"</span>])</span><br><span class="line">    ios = IOS(<span class="string">"http://localhost:8100/"</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># go to setting to entrust certificate</span></span><br><span class="line">    sleep(<span class="number">1.0</span>)</span><br><span class="line">    ios.alert_click([<span class="string">'设置'</span>, <span class="string">'容许'</span>, <span class="string">'好'</span>, <span class="string">'信任'</span>])</span><br><span class="line">    sleep(<span class="number">1</span>)</span><br><span class="line">    t.app_stop(settings_id)</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># launch app</span></span><br><span class="line">    t.app_start(bundle_id)</span><br><span class="line">    sleep(<span class="number">3</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># skip guide page</span></span><br><span class="line">    touch(Template(<span class="string">r"tpl1639639708132.png"</span>, record_pos=(<span class="number">0.395</span>, <span class="number">-0.785</span>), resolution=(<span class="number">750</span>, <span class="number">1334</span>)))</span><br><span class="line">    sleep(<span class="number">5</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># enter background</span></span><br><span class="line">    keyevent(<span class="string">"HOME"</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">auto_test</span><span class="params">()</span>:</span></span><br><span class="line">    <span class="comment"># install &amp; unlock device</span></span><br><span class="line">    t.app_install(<span class="string">'xxx.ipa'</span>)</span><br><span class="line">    <span class="keyword">if</span> ios.is_locked():</span><br><span class="line">        ios.unlock()</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># execute recorded script code from airtestIde</span></span><br><span class="line">    ui_test()</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># uninstall</span></span><br><span class="line">    t.app_uninstall(bundle_id)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">cycle_test</span><span class="params">()</span>:</span></span><br><span class="line">    a = <span class="number">0</span></span><br><span class="line">    <span class="keyword">while</span> a &lt; <span class="number">50</span>:</span><br><span class="line">        auto_test()</span><br><span class="line">        a += <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="碰到的一些问题"><a href="#碰到的一些问题" class="headerlink" title="碰到的一些问题"></a>碰到的一些问题</h4><ul>
+<li><p><a href="https://github.com/AirtestProject/iOS-Tagent" target="_blank" rel="noopener">iOS-Tagent</a> 用xcode跑起来没有反应的问题</p>
+<p>应为这个项目中有多个target，所以需要在product-scheme中指定target为’webDriverAgentRunner’</p>
+</li>
+<li><p>高于iOS12系统的用airtestIde连接不成功的问题</p>
+<p>由于<a href="https://github.com/AirtestProject/iOS-Tagent" target="_blank" rel="noopener">iOS-Tagent</a> 只支持到11，所以需要手动去找到高版本可用的webDriverAgentRunner,目前我贴的这个用到15.3没有问题 <a href="https://github.com/appium/WebDriverAgent" target="_blank" rel="noopener">webDriverAgent</a></p>
+</li>
+</ul>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实整个方案本质是python和tidevice以及airtest联合起来使用的产出，我个人也通过这些进行举一反三，让工作上有些数据的取证变得更加简单，我永远爱自动化,永远爱python!</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>青禾
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/" title="Airtest的简单使用">http://qingheblog.online/工作总结/Airtest的简单使用/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/iOS%E7%9A%84web%E7%A6%BB%E7%BA%BF%E5%8C%96/" rel="prev" title="iOS的web离线化">
+      <i class="fa fa-chevron-left"></i> iOS的web离线化
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据采集"><span class="nav-number">2.</span> <span class="nav-text">数据采集</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#手动测试出现的问题"><span class="nav-number">3.</span> <span class="nav-text">手动测试出现的问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#方案的尝试"><span class="nav-number">4.</span> <span class="nav-text">方案的尝试</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#AirTest"><span class="nav-number">5.</span> <span class="nav-text">AirTest</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#AirTest的使用"><span class="nav-number">6.</span> <span class="nav-text">AirTest的使用</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#完整的闭环"><span class="nav-number">7.</span> <span class="nav-text">完整的闭环</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#碰到的一些问题"><span class="nav-number">8.</span> <span class="nav-text">碰到的一些问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#最后"><span class="nav-number">9.</span> <span class="nav-text">最后</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="青禾"
+      src="/images/avatar.JPG">
+  <p class="site-author-name" itemprop="name">青禾</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">30</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/YaoJuan" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;YaoJuan" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/xx8611205@gmail.com" title="E-Mail → xx8611205@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" class="cc-opacity" rel="noopener" target="_blank"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">青禾</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+NexT.utils.loadComments(document.querySelector('#gitalk-container'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID    : 'd8d3c3e7eb485c5898d7',
+      clientSecret: '21a1bb2602f0d5a3e849a524cbe4900632c995c1',
+      repo        : 'YaoJuan.github.io',
+      owner       : 'YaoJuan',
+      admin       : ['YaoJuan'],
+      id          : '3c395d5c486f4348a27cc068fbef05d7',
+        language: '',
+      distractionFreeMode: true
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+});
+</script>
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"log":false,"model":{"jsonPath":"/live2dw/assets/tsumiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":true}});</script></body>
+</html>

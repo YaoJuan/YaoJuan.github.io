@@ -123,7 +123,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">30</span></a>
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档<span class="badge">31</span></a>
 
   </li>
   </ul>
@@ -153,6 +153,99 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.JPG">
+      <meta itemprop="name" content="青禾">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="遇见青禾">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/" class="post-title-link" itemprop="url">iOS组件二进制化实践</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-12-30 17:33:51" itemprop="dateCreated datePublished" datetime="2021-12-30T17:33:51+08:00">2021-12-30</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-12-31 09:24:18" itemprop="dateModified" datetime="2021-12-31T09:24:18+08:00">2021-12-31</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          前言
+由于最近准备离职，所以把之前做的工作做一些总结，也方便自己后续查找相关信息，这一篇是关于pod库二进制化的内容，二进制化是把Pod里面的三方库和私有库转换成静态库，以达到提升编译速度的目的。由于我们项目在前期已经做了大量组件化的工作，所以这部分的成效还可以
+
+环境准备
+我们是基于一个开源项目cocoapods-imy-bin来做的，所以先配备需要安装这个gem
+
+1
+
+
+sudo gem install cocoapods-imy-bin
+
+
+然后执行 pod bin init来进行项目的初始化，按照下面不同的环境配置即可
+
+1
+2
+3
+4
+5
+
+
+configuration_env: 
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -178,7 +271,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2021-12-28 16:18:26 / 修改时间：18:08:21" itemprop="dateCreated datePublished" datetime="2021-12-28T16:18:26+08:00">2021-12-28</time>
+              <time title="创建时间：2021-12-28 16:18:26 / 修改时间：18:10:33" itemprop="dateCreated datePublished" datetime="2021-12-28T16:18:26+08:00">2021-12-28</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -903,113 +996,10 @@ Lightroom简介
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.JPG">
-      <meta itemprop="name" content="青禾">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="遇见青禾">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/" class="post-title-link" itemprop="url">向super发消息</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2021-03-23 13:57:05 / 修改时间：13:58:26" itemprop="dateCreated datePublished" datetime="2021-03-23T13:57:05+08:00">2021-03-23</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">原理分析</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          前言
-关于一道面试题，定义一个父类，实现一个函数，函数里打印self。然后再定义一个继承于这个类的子类。然后重写这个函数，在函数里调用super xxx，请问打印结果。其实这个结果我很早之前就知道，是打印的子类。但是还是想探究一下为什么，所以有了这篇博客
-
-objc_msgSendSuper
-首先验证下自己的猜想，建2个类，写出需要的代码。
-
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-
-
-
-int main(int argc, const char * argv[]) {
-    @autoreleasepool {
-        
-        Gir
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E5%90%91super%E5%8F%91%E6%B6%88%E6%81%AF/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
-    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><span class="space">&hellip;</span><a class="page-number" href="/page/4/">4</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right" aria-label="下一页"></i></a>
   </nav>
 
 
@@ -1077,7 +1067,7 @@ int main(int argc, const char * argv[]) {
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">30</span>
+          <span class="site-state-item-count">31</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

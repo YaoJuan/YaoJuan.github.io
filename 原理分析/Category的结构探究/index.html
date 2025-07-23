@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>Category的结构探究 | 遇见青禾</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="前言在之前研究fishhook的时候有碰过一点点dyld加载的知识，当时惊鸿一瞥到了类的加载，也看到了分类的加载。只记得加载镜像之后的一些处理，大体对于分类还是有点迷迷糊糊，所以借着学习的机会走一次源码看看 Category的使用一般我们为了对业务的拆分或者一些其他的要求，要对一些原有的类进行加强，我们一般会写分类。在其中可以定义方法的声明和实现。也可以写properties，但是注意proper">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Category的结构探究">
+<meta property="og:url" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/Category%E7%9A%84%E7%BB%93%E6%9E%84%E6%8E%A2%E7%A9%B6/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言在之前研究fishhook的时候有碰过一点点dyld加载的知识，当时惊鸿一瞥到了类的加载，也看到了分类的加载。只记得加载镜像之后的一些处理，大体对于分类还是有点迷迷糊糊，所以借着学习的机会走一次源码看看 Category的使用一般我们为了对业务的拆分或者一些其他的要求，要对一些原有的类进行加强，我们一般会写分类。在其中可以定义方法的声明和实现。也可以写properties，但是注意proper">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-01-15T01:59:49.000Z">
+<meta property="article:modified_time" content="2025-07-23T10:18:10.049Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="遇见青禾" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">遇见青禾</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">qingheblog.online</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS 订阅"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="搜索"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="搜索"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://qingheblog.online"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-Category的结构探究" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/Category%E7%9A%84%E7%BB%93%E6%9E%84%E6%8E%A2%E7%A9%B6/" class="article-date">
+  <time class="dt-published" datetime="2021-01-15T01:59:49.000Z" itemprop="datePublished">2021-01-15</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      Category的结构探究
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在之前研究fishhook的时候有碰过一点点dyld加载的知识，当时惊鸿一瞥到了类的加载，也看到了分类的加载。只记得加载镜像之后的一些处理，大体对于分类还是有点迷迷糊糊，所以借着学习的机会走一次源码看看</p>
+<h4 id="Category的使用"><a href="#Category的使用" class="headerlink" title="Category的使用"></a>Category的使用</h4><p>一般我们为了对业务的拆分或者一些其他的要求，要对一些原有的类进行加强，我们一般会写分类。在其中可以定义方法的声明和实现。也可以写properties，但是注意properties只会生成对应的set和get的声明，并不会有成员变量和对应方法的实现。所以我们一边是搭配着AssociatedObject来使用的</p>
+<h4 id="Category的底层结构"><a href="#Category的底层结构" class="headerlink" title="Category的底层结构"></a>Category的底层结构</h4><p>想要获取Category的底层结构很简单，可以直接在项目中定义一个分类，然后通过clang来手动编译成c++，然后查看对应的.mm文件就可以看到。但是我们有一个更简单的办法，直接查看源码，结构如下</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">category_t</span> &#123;</span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *name;</span><br><span class="line">    <span class="type">classref_t</span> cls;</span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">method_list_t</span> *instanceMethods;</span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">method_list_t</span> *classMethods;</span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">protocol_list_t</span> *protocols;</span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">property_list_t</span> *instanceProperties;</span><br><span class="line">    <span class="comment">// Fields below this point are not always present on disk.</span></span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">property_list_t</span> *_classProperties;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">method_list_t</span> *<span class="title">methodsForMeta</span><span class="params">(<span class="type">bool</span> isMeta)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (isMeta) <span class="keyword">return</span> classMethods;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">return</span> instanceMethods;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">property_list_t</span> *<span class="title">propertiesForMeta</span><span class="params">(<span class="type">bool</span> isMeta, <span class="keyword">struct</span> header_info *hi)</span></span>;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>里面保存了类名，实力方法、类方法、协议、以及变量。注意的是这里的变量并不会真正的存变量。其实看到这个结构我们很熟悉，其中几个变量和之前的类的结构体很相似，我个人猜想是在运行时把这些类附加到对应的类的结构体以及元类结构体中。可以从大概的代码中验证一下</p>
+<h4 id="Category的加载"><a href="#Category的加载" class="headerlink" title="Category的加载"></a>Category的加载</h4><p>我们可以从lldb加载镜像一直跟起，跟到加载分类的函数，源码实现是这这个</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/***********************************************************************</span></span><br><span class="line"><span class="comment">* remethodizeClass</span></span><br><span class="line"><span class="comment">* Attach outstanding categories to an existing class.</span></span><br><span class="line"><span class="comment">* Fixes up cls&#x27;s method list, protocol list, and property list.</span></span><br><span class="line"><span class="comment">* Updates method caches for cls and its subclasses.</span></span><br><span class="line"><span class="comment">* Locking: runtimeLock must be held by the caller</span></span><br><span class="line"><span class="comment">**********************************************************************/</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">remethodizeClass</span><span class="params">(Class cls)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    category_list *cats;</span><br><span class="line">    <span class="type">bool</span> isMeta;</span><br><span class="line"></span><br><span class="line">    runtimeLock.<span class="built_in">assertWriting</span>();</span><br><span class="line"></span><br><span class="line">    isMeta = cls-&gt;<span class="built_in">isMetaClass</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Re-methodizing: check for more categories</span></span><br><span class="line">    <span class="keyword">if</span> ((cats = <span class="built_in">unattachedCategoriesForClass</span>(cls, <span class="literal">false</span><span class="comment">/*not realizing*/</span>))) &#123;</span><br><span class="line">        <span class="keyword">if</span> (PrintConnecting) &#123;</span><br><span class="line">            _objc_inform(<span class="string">&quot;CLASS: attaching categories to class &#x27;%s&#x27; %s&quot;</span>, </span><br><span class="line">                         cls-&gt;<span class="built_in">nameForLogging</span>(), isMeta ? <span class="string">&quot;(meta)&quot;</span> : <span class="string">&quot;&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="built_in">attachCategories</span>(cls, cats, <span class="literal">true</span> <span class="comment">/*flush caches*/</span>);        </span><br><span class="line">        <span class="built_in">free</span>(cats);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>通过注释我们也可以看出，这是要做附加分类的工作了，继续跟一步看</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Attach method lists and properties and protocols from categories to a class.</span></span><br><span class="line"><span class="comment">// Assumes the categories in cats are all loaded and sorted by load order, </span></span><br><span class="line"><span class="comment">// oldest categories first.</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> </span></span><br><span class="line"><span class="function"><span class="title">attachCategories</span><span class="params">(Class cls, category_list *cats, <span class="type">bool</span> flush_caches)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cats) <span class="keyword">return</span>;</span><br><span class="line">    <span class="keyword">if</span> (PrintReplacedMethods) <span class="built_in">printReplacements</span>(cls, cats);</span><br><span class="line"></span><br><span class="line">    <span class="type">bool</span> isMeta = cls-&gt;<span class="built_in">isMetaClass</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// fixme rearrange to remove these intermediate allocations</span></span><br><span class="line">    <span class="type">method_list_t</span> **mlists = (<span class="type">method_list_t</span> **)</span><br><span class="line">        <span class="built_in">malloc</span>(cats-&gt;count * <span class="built_in">sizeof</span>(*mlists));</span><br><span class="line">    <span class="type">property_list_t</span> **proplists = (<span class="type">property_list_t</span> **)</span><br><span class="line">        <span class="built_in">malloc</span>(cats-&gt;count * <span class="built_in">sizeof</span>(*proplists));</span><br><span class="line">    <span class="type">protocol_list_t</span> **protolists = (<span class="type">protocol_list_t</span> **)</span><br><span class="line">        <span class="built_in">malloc</span>(cats-&gt;count * <span class="built_in">sizeof</span>(*protolists));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Count backwards through cats to get newest categories first</span></span><br><span class="line">    <span class="type">int</span> mcount = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> propcount = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> protocount = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> i = cats-&gt;count;</span><br><span class="line">    <span class="type">bool</span> fromBundle = NO;</span><br><span class="line">    <span class="keyword">while</span> (i--) &#123;</span><br><span class="line">        <span class="keyword">auto</span>&amp; entry = cats-&gt;list[i];</span><br><span class="line"></span><br><span class="line">        <span class="type">method_list_t</span> *mlist = entry.cat-&gt;<span class="built_in">methodsForMeta</span>(isMeta);</span><br><span class="line">        <span class="keyword">if</span> (mlist) &#123;</span><br><span class="line">            mlists[mcount++] = mlist;</span><br><span class="line">            fromBundle |= entry.hi-&gt;<span class="built_in">isBundle</span>();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="type">property_list_t</span> *proplist = </span><br><span class="line">            entry.cat-&gt;<span class="built_in">propertiesForMeta</span>(isMeta, entry.hi);</span><br><span class="line">        <span class="keyword">if</span> (proplist) &#123;</span><br><span class="line">            proplists[propcount++] = proplist;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="type">protocol_list_t</span> *protolist = entry.cat-&gt;protocols;</span><br><span class="line">        <span class="keyword">if</span> (protolist) &#123;</span><br><span class="line">            protolists[protocount++] = protolist;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">auto</span> rw = cls-&gt;<span class="built_in">data</span>();</span><br><span class="line"></span><br><span class="line">    <span class="built_in">prepareMethodLists</span>(cls, mlists, mcount, NO, fromBundle);</span><br><span class="line">    rw-&gt;methods.<span class="built_in">attachLists</span>(mlists, mcount);</span><br><span class="line">    <span class="built_in">free</span>(mlists);</span><br><span class="line">    <span class="keyword">if</span> (flush_caches  &amp;&amp;  mcount &gt; <span class="number">0</span>) <span class="built_in">flushCaches</span>(cls);</span><br><span class="line"></span><br><span class="line">    rw-&gt;properties.<span class="built_in">attachLists</span>(proplists, propcount);</span><br><span class="line">    <span class="built_in">free</span>(proplists);</span><br><span class="line"></span><br><span class="line">    rw-&gt;protocols.<span class="built_in">attachLists</span>(protolists, protocount);</span><br><span class="line">    <span class="built_in">free</span>(protolists);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>简而言之就是就是迭代所有的分类，然后把分类中的变量，方法，协议分别调用attachLists来做附加。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">void attachLists(List* const * addedLists, uint32_t addedCount) &#123;</span><br><span class="line">    if (addedCount == 0) return;</span><br><span class="line"></span><br><span class="line">    if (hasArray()) &#123;</span><br><span class="line">        // many lists -&gt; many lists</span><br><span class="line">        uint32_t oldCount = array()-&gt;count;</span><br><span class="line">        uint32_t newCount = oldCount + addedCount;</span><br><span class="line">        setArray((array_t *)realloc(array(), array_t::byteSize(newCount)));</span><br><span class="line">        array()-&gt;count = newCount;</span><br><span class="line">        memmove(array()-&gt;lists + addedCount, array()-&gt;lists, </span><br><span class="line">                oldCount * sizeof(array()-&gt;lists[0]));</span><br><span class="line">        memcpy(array()-&gt;lists, addedLists, </span><br><span class="line">               addedCount * sizeof(array()-&gt;lists[0]));</span><br><span class="line">    &#125;</span><br><span class="line">    else if (!list  &amp;&amp;  addedCount == 1) &#123;</span><br><span class="line">        // 0 lists -&gt; 1 list</span><br><span class="line">        list = addedLists[0];</span><br><span class="line">    &#125; </span><br><span class="line">    else &#123;</span><br><span class="line">        // 1 list -&gt; many lists</span><br><span class="line">        List* oldList = list;</span><br><span class="line">        uint32_t oldCount = oldList ? 1 : 0;</span><br><span class="line">        uint32_t newCount = oldCount + addedCount;</span><br><span class="line">        setArray((array_t *)malloc(array_t::byteSize(newCount)));</span><br><span class="line">        array()-&gt;count = newCount;</span><br><span class="line">        if (oldList) array()-&gt;lists[addedCount] = oldList;</span><br><span class="line">        memcpy(array()-&gt;lists, addedLists, </span><br><span class="line">               addedCount * sizeof(array()-&gt;lists[0]));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>简单看一下就是把原来存在的协议，方法都进行了后移，然后把分类对应的这些东西放在最前面。</p>
+<p>这里引出一个问题，如果在类和分类中同时实现了一个方法。根据上面这个附加逻辑，明显就是会调用分类的，但是请注意这并不是覆盖。而只是在方法列表中，分类的同名方法在类的前面，所有在查找imp的时候先找到的是分类的，所以就会调用分类的</p>
+<h4 id="Category的Load方法"><a href="#Category的Load方法" class="headerlink" title="Category的Load方法"></a>Category的Load方法</h4><p>我们知道所有的类会在应用跑起来的时候都会执行一次load方法，这是dyld在加载完所有image,然后加载类的时候做的事情。那么如果在分类中写load呢，其实尝试一下发现分类的load也是会调用的。</p>
+<p>而且会发现一个奇怪的事情，类原本的load也会调用。这似乎不符合我们上面一张最后那个方法“覆盖”的逻辑。关于这一点也只是查看源码进一步求证</p>
+<p>我们首先找到要调用load方法的地方</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span></span></span><br><span class="line"><span class="function"><span class="title">load_images</span><span class="params">(<span class="type">const</span> <span class="type">char</span> *path __unused, <span class="type">const</span> <span class="keyword">struct</span> mach_header *mh)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// Return without taking locks if there are no +load methods here.</span></span><br><span class="line">    <span class="keyword">if</span> (!<span class="built_in">hasLoadMethods</span>((<span class="type">const</span> headerType *)mh)) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">recursive_mutex_locker_t</span> <span class="title">lock</span><span class="params">(loadMethodLock)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Discover load methods</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="function"><span class="type">rwlock_writer_t</span> <span class="title">lock2</span><span class="params">(runtimeLock)</span></span>;</span><br><span class="line">        <span class="built_in">prepare_load_methods</span>((<span class="type">const</span> headerType *)mh);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Call +load methods (without runtimeLock - re-entrant)</span></span><br><span class="line">    <span class="built_in">call_load_methods</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实prepare_load_methods里面就做了一些预添加以及添加分类的操作</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">prepare_load_methods</span><span class="params">(<span class="type">const</span> headerType *mhdr)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">size_t</span> count, i;</span><br><span class="line"></span><br><span class="line">    runtimeLock.<span class="built_in">assertWriting</span>();</span><br><span class="line"></span><br><span class="line">    <span class="type">classref_t</span> *classlist = </span><br><span class="line">        _getObjc2NonlazyClassList(mhdr, &amp;count);</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; count; i++) &#123;</span><br><span class="line">        <span class="built_in">schedule_class_load</span>(<span class="built_in">remapClass</span>(classlist[i]));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">category_t</span> **categorylist = _getObjc2NonlazyCategoryList(mhdr, &amp;count);</span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; count; i++) &#123;</span><br><span class="line">        <span class="type">category_t</span> *cat = categorylist[i];</span><br><span class="line">        Class cls = <span class="built_in">remapClass</span>(cat-&gt;cls);</span><br><span class="line">        <span class="keyword">if</span> (!cls) <span class="keyword">continue</span>;  <span class="comment">// category for ignored weak-linked class</span></span><br><span class="line">        <span class="built_in">realizeClass</span>(cls);</span><br><span class="line">        <span class="built_in">assert</span>(cls-&gt;<span class="built_in">ISA</span>()-&gt;<span class="built_in">isRealized</span>());</span><br><span class="line">        <span class="built_in">add_category_to_loadable_list</span>(cat);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>重要一点我们要看看schedule_class_load</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">schedule_class_load</span><span class="params">(Class cls)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!cls) <span class="keyword">return</span>;</span><br><span class="line">    <span class="built_in">assert</span>(cls-&gt;<span class="built_in">isRealized</span>());  <span class="comment">// _read_images should realize</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (cls-&gt;<span class="built_in">data</span>()-&gt;flags &amp; RW_LOADED) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Ensure superclass-first ordering</span></span><br><span class="line">    <span class="built_in">schedule_class_load</span>(cls-&gt;superclass);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">add_class_to_loadable_list</span>(cls);</span><br><span class="line">    cls-&gt;<span class="built_in">setInfo</span>(RW_LOADED); </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实这是一个递归调用，递归将类加载到loadable_list中，并且永远是先加载父类再加载子类，做完这些处理之后我们就有2个有顺序的表，class和category，并且根据先后加载以及父类的关系做了排序</p>
+<p>然后分别调用load方法</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">call_load_methods</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">static</span> <span class="type">bool</span> loading = NO;</span><br><span class="line">    <span class="type">bool</span> more_categories;</span><br><span class="line"></span><br><span class="line">    loadMethodLock.<span class="built_in">assertLocked</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Re-entrant calls do nothing; the outermost call will finish the job.</span></span><br><span class="line">    <span class="keyword">if</span> (loading) <span class="keyword">return</span>;</span><br><span class="line">    loading = YES;</span><br><span class="line"></span><br><span class="line">    <span class="type">void</span> *pool = <span class="built_in">objc_autoreleasePoolPush</span>();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        <span class="comment">// 1. Repeatedly call class +loads until there aren&#x27;t any more</span></span><br><span class="line">        <span class="keyword">while</span> (loadable_classes_used &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="built_in">call_class_loads</span>();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 2. Call category +loads ONCE</span></span><br><span class="line">        more_categories = <span class="built_in">call_category_loads</span>();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 3. Run more +loads if there are classes OR more untried categories</span></span><br><span class="line">    &#125; <span class="keyword">while</span> (loadable_classes_used &gt; <span class="number">0</span>  ||  more_categories);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">objc_autoreleasePoolPop</span>(pool);</span><br><span class="line"></span><br><span class="line">    loading = NO;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到先调用的类，调用完了所有的类，然后再调用分类的load。但是这并不能解决我们为什么方法没有覆盖的问题。于是再点进看一下</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">call_class_loads</span><span class="params">(<span class="type">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">int</span> i;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Detach current loadable list.</span></span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">loadable_class</span> *classes = loadable_classes;</span><br><span class="line">    <span class="type">int</span> used = loadable_classes_used;</span><br><span class="line">    loadable_classes = nil;</span><br><span class="line">    loadable_classes_allocated = <span class="number">0</span>;</span><br><span class="line">    loadable_classes_used = <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Call all +loads for the detached list.</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; used; i++) &#123;</span><br><span class="line">        Class cls = classes[i].cls;</span><br><span class="line">        <span class="type">load_method_t</span> load_method = (<span class="type">load_method_t</span>)classes[i].method;</span><br><span class="line">        <span class="keyword">if</span> (!cls) <span class="keyword">continue</span>; </span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (PrintLoading) &#123;</span><br><span class="line">            _objc_inform(<span class="string">&quot;LOAD: +[%s load]\n&quot;</span>, cls-&gt;<span class="built_in">nameForLogging</span>());</span><br><span class="line">        &#125;</span><br><span class="line">        (*load_method)(cls, SEL_load);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Destroy the detached list.</span></span><br><span class="line">    <span class="keyword">if</span> (classes) <span class="built_in">free</span>(classes);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>我们发现他拿到load方法的指针并不是通过msg_send。而是直接通过.method的指针拿到的，所有并不会有查找的过程，而是简单粗暴的通过地址直接取，然后调用。分类中的代码大同小异，就不展开了</p>
+<h4 id="Category的initialize"><a href="#Category的initialize" class="headerlink" title="Category的initialize"></a>Category的initialize</h4><p>相对于load,有另外一个方法也很相似，也是只会调用一次。就是initialize。这个方法会在类对象第一次收到消息时调用。关于这一点也找证实一下</p>
+<p>我们可以去查看objc_msgSend的源码,但是很遗憾，这里全部都是汇编来实现的。而且并没有看到initialize的踪迹。</p>
+<p>但是我们都知道发送消息之前需要查找消息，很不信，这也是用汇编实现的。但是跟着汇编的函数最终还是会有一个c的函数调用</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">IMP <span class="title">class_getMethodImplementation</span><span class="params">(Class cls, SEL sel)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    IMP imp;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!cls  ||  !sel) <span class="keyword">return</span> nil;</span><br><span class="line"></span><br><span class="line">    imp = <span class="built_in">lookUpImpOrNil</span>(cls, sel, nil, </span><br><span class="line">                         YES<span class="comment">/*initialize*/</span>, YES<span class="comment">/*cache*/</span>, YES<span class="comment">/*resolver*/</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Translate forwarding function to C-callable external version</span></span><br><span class="line">    <span class="keyword">if</span> (!imp) &#123;</span><br><span class="line">        <span class="keyword">return</span> _objc_msgForward;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> imp;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>继续跟进去，方法太长，我们只截取部分和注释</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">***********************************************************************</span><br><span class="line">* lookUpImpOrForward.</span><br><span class="line">* The standard IMP lookup. </span><br><span class="line">* initialize==NO tries to avoid +<span class="built_in">initialize</span> (but sometimes fails)</span><br><span class="line">* cache==NO skips optimistic unlocked <span class="built_in">lookup</span> (but uses cache elsewhere)</span><br><span class="line">* Most callers should use initialize==YES <span class="keyword">and</span> cache==YES.</span><br><span class="line">* inst is an instance of cls <span class="keyword">or</span> a subclass thereof, <span class="keyword">or</span> nil <span class="keyword">if</span> none is known. </span><br><span class="line">*   If cls is an un-initialized metaclass then a non-nil inst is faster.</span><br><span class="line">* May <span class="keyword">return</span> _objc_msgForward_impcache. IMPs destined <span class="keyword">for</span> external use </span><br><span class="line">*   must be converted to _objc_msgForward <span class="keyword">or</span> _objc_msgForward_stret.</span><br><span class="line">*   If you don<span class="string">&#x27;t want forwarding at all, use lookUpImpOrNil() instead.</span></span><br><span class="line"><span class="string">**********************************************************************/</span></span><br><span class="line"><span class="string">IMP lookUpImpOrForward(Class cls, SEL sel, id inst, </span></span><br><span class="line"><span class="string">                       bool initialize, bool cache, bool resolver)&#123;</span></span><br><span class="line"><span class="string">  ....</span></span><br><span class="line"><span class="string">        if (initialize  &amp;&amp;  !cls-&gt;isInitialized()) &#123;</span></span><br><span class="line"><span class="string">        runtimeLock.unlockRead();</span></span><br><span class="line"><span class="string">        _class_initialize (_class_getNonMetaClass(cls, inst));</span></span><br><span class="line"><span class="string">        runtimeLock.read();</span></span><br><span class="line"><span class="string">        // If sel == initialize, _class_initialize will send +initialize and </span></span><br><span class="line"><span class="string">        // then the messenger will send +initialize again after this </span></span><br><span class="line"><span class="string">        // procedure finishes. Of course, if this is not being called </span></span><br><span class="line"><span class="string">        // from the messenger then it won&#x27;</span>t happen. <span class="number">2778172</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到需要初始化，并且没有被初始化的时候就会去初始化,_class_initialize部分实现如下</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/***********************************************************************</span></span><br><span class="line"><span class="comment">* class_initialize.  Send the &#x27;+initialize&#x27; message on demand to any</span></span><br><span class="line"><span class="comment">* uninitialized class. Force initialization of superclasses first.</span></span><br><span class="line"><span class="comment">**********************************************************************/</span></span><br><span class="line"><span class="type">void</span> _class_initialize(Class cls)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">assert</span>(!cls-&gt;<span class="built_in">isMetaClass</span>());</span><br><span class="line"></span><br><span class="line">    Class supercls;</span><br><span class="line">    <span class="type">bool</span> reallyInitialize = NO;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Make sure super is done initializing BEFORE beginning to initialize cls.</span></span><br><span class="line">    <span class="comment">// See note about deadlock above.</span></span><br><span class="line">    supercls = cls-&gt;superclass;</span><br><span class="line">    <span class="keyword">if</span> (supercls  &amp;&amp;  !supercls-&gt;<span class="built_in">isInitialized</span>()) &#123;</span><br><span class="line">        _class_initialize(supercls);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">/// 省略</span></span><br><span class="line">  <span class="built_in">callInitialize</span>(cls);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>很显然这是一个递归调用，也是会先初始化父类。到最终会执行到callInitialize</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">callInitialize</span><span class="params">(Class cls)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ((<span class="built_in">void</span>(*)(Class, SEL))objc_msgSend)(cls, SEL_initialize);</span><br><span class="line">    <span class="built_in">asm</span>(<span class="string">&quot;&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>看到代码，是通过objc_msgSend来调用的initialize。所以我们肯定有答案了，也会做类似”覆盖”的操作</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>到最后，我们可以总结一下load和initialize的调用顺序</p>
+<h6 id="Load"><a href="#Load" class="headerlink" title="Load"></a>Load</h6><ul>
+<li>+load方法会在runtime加载类、分类时调用</li>
+<li>先调用类的+load</li>
+<li>按照编译先后顺序调用（先编译，先调用）</li>
+<li>调用子类的+load之前会先调用父类的+load</li>
+<li>所有类的load调用完成再调用分类的+load</li>
+<li>按照编译先后顺序调用（先编译，先调用）</li>
+</ul>
+<h6 id="Initialize"><a href="#Initialize" class="headerlink" title="Initialize"></a>Initialize</h6><ul>
+<li>+initialize方法会在类第一次接收到消息时调用</li>
+<li>先调用父类的+initialize，再调用子类的+initialize</li>
+<li>+initialize和+load的很大区别是，+initialize是通过objc_msgSend进行调用的，所以有以下特点<ol>
+<li>如果子类没有实现+initialize，会调用父类的+initialize</li>
+<li>如果分类实现了+initialize，就覆盖类本身的+initialize调用</li>
+</ol>
+</li>
+</ul>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/Category%E7%9A%84%E7%BB%93%E6%9E%84%E6%8E%A2%E7%A9%B6/" data-id="cmdft9ll50003ydwc5aqdhri7" data-title="Category的结构探究" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/block%E7%9A%84%E6%9C%AC%E8%B4%A8/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">前一篇</strong>
+      <div class="article-nav-title">
+        
+          block的本质
+        
+      </div>
+    </a>
+  
+  
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">后一篇</strong>
+      <div class="article-nav-title">AssociatedObject</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">分类</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/swift/">swift</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/">工作总结</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%91%84%E5%BD%B1/">摄影</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%80%86%E5%90%91/">逆向</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/">项目优化</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/development/" rel="tag">development</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/flutter/" rel="tag">flutter</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ios/" rel="tag">ios</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/mapbox/" rel="tag">mapbox</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/plugin/" rel="tag">plugin</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spm/" rel="tag">spm</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/development/" style="font-size: 10px;">development</a> <a href="/tags/flutter/" style="font-size: 10px;">flutter</a> <a href="/tags/ios/" style="font-size: 10px;">ios</a> <a href="/tags/mapbox/" style="font-size: 10px;">mapbox</a> <a href="/tags/plugin/" style="font-size: 10px;">plugin</a> <a href="/tags/spm/" style="font-size: 10px;">spm</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2025/07/">七月 2025</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/12/">十二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/07/">七月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/05/">五月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/04/">四月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/03/">三月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/02/">二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/01/">一月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/12/">十二月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/11/">十一月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/08/">八月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/uncategorized/hello-world/">Hello World</a>
+          </li>
+        
+          <li>
+            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/Flutter-Plugin%E4%BB%8ECocoaPods%E8%BF%81%E7%A7%BB%E5%88%B0SPM/">Flutter Plugin 从 CocoaPods 迁移到 SPM</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/iOS%E7%9A%84APP%E7%98%A6%E8%BA%AB/">iOS的APP瘦身</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">iOS组件二进制化实践</a>
+          </li>
+        
+          <li>
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">Airtest的简单使用</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2025 青禾<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>

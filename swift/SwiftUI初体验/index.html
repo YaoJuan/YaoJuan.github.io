@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>SwiftUI初体验 | 遇见青禾</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="自我代码风格的历程Part1​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及FRP用到的MVVM+RxSwift，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SwiftUI初体验">
+<meta property="og:url" content="http://qingheblog.online/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="自我代码风格的历程Part1​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及FRP用到的MVVM+RxSwift，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/mvc.png">
+<meta property="og:image" content="http://qingheblog.online/mvvm.png">
+<meta property="og:image" content="http://qingheblog.online/code.png">
+<meta property="article:published_time" content="2020-11-07T02:43:00.000Z">
+<meta property="article:modified_time" content="2025-07-23T10:18:10.345Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/mvc.png">
+  
+    <link rel="alternate" href="/atom.xml" title="遇见青禾" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">遇见青禾</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">qingheblog.online</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS 订阅"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="搜索"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="搜索"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://qingheblog.online"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-SwiftUI初体验" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/" class="article-date">
+  <time class="dt-published" datetime="2020-11-07T02:43:00.000Z" itemprop="datePublished">2020-11-07</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/swift/">swift</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      SwiftUI初体验
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h3 id="自我代码风格的历程"><a href="#自我代码风格的历程" class="headerlink" title="自我代码风格的历程"></a>自我代码风格的历程</h3><h6 id="Part1"><a href="#Part1" class="headerlink" title="Part1"></a>Part1</h6><p>​    从刚学iOS时的代码毫无架构，到了解了MVC，原来知道代码可以这么写。到业务量增大，C中代码太多了，转变成了一个单纯把C代码移动ViewModel中，给C减负，单纯把文件1拆为2不怎么样的伪MVVM。再到后来接触到swift，以及<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Functional_reactive_programming">FRP</a>用到的MVVM+<a target="_blank" rel="noopener" href="https://github.com/ReactiveX/RxSwift">RxSwift</a>，觉得写起来特别舒服。当时就觉得移动端就应该是这样的，拿到数据，展示，做一些动画和UI的处理。没有updateUI的代码,用户的操作改变了视图数据，自动刷新UI。不得不说，当时写完的代码自己看起来都觉得一目了然，特别舒服，连注释都不用写太多</p>
+<h6 id="Part2"><a href="#Part2" class="headerlink" title="Part2"></a>Part2</h6><p>​    <a target="_blank" rel="noopener" href="https://developer.apple.com/videos/wwdc2019"><strong>WWDC2019</strong></a>让我记忆犹新，苹果推出了2个框架<a target="_blank" rel="noopener" href="https://developer.apple.com/xcode/swiftui/">SwiftUI</a>,和<a target="_blank" rel="noopener" href="https://developer.apple.com/documentation/combine">Combine</a>,分别说说这两个东西</p>
+<blockquote>
+<ol>
+<li><a target="_blank" rel="noopener" href="https://developer.apple.com/documentation/combine">Combine</a> 简单来说，这就是苹果自己的一个swift上的<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Functional_reactive_programming">FRP</a>框架，这不是苹果第一次把第三方的东西自己拿来实现了，例如之前很多的Xcode的插件，都被苹果自己实现了。看到这个消息是很开心的，因为对于国内开发者来说，swift都比较少。rxswift可以说是异类中的异类，不被接受。<a target="_blank" rel="noopener" href="https://developer.apple.com/documentation/combine">Combine</a> 的出现，起码说明了苹果接下来要对这方面的大力推广以及肯定。这点在<a target="_blank" rel="noopener" href="https://developer.apple.com/xcode/swiftui/">SwiftUI</a>中，得到了认证</li>
+<li><a target="_blank" rel="noopener" href="https://developer.apple.com/xcode/swiftui/">SwiftUI</a>  搬运一段官网的话。”SwiftUI is an innovative, exceptionally <strong>simple way</strong> to build user interfaces <strong>across all Apple platforms</strong> with the power of Swift. Build user interfaces for any Apple device using just one set of tools and APIs. With a <strong>declarative Swift syntax</strong> that’s easy to read and natural to write, SwiftUI works seamlessly with new Xcode design tools to keep your code and design perfectly in sync“ 概括来说，开发简单，跨平台,并且与以往命令式UI不同，采用了声明式UI的开发方式。具体后面再继续说</li>
+</ol>
+</blockquote>
+<h2 id="MVC"><a href="#MVC" class="headerlink" title="MVC"></a><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/MVC">MVC</a></h2><p>刚入门的时候写OC常用的写法，非常感谢自己当时入门看到的一个教程<a target="_blank" rel="noopener" href="https://medium.com/@seabjackson/cs193p-developing-ios-11-apps-with-swift-lecture-2-notes-bad3318aedde">CS193P</a>，让我在理解<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/MVC">MVC</a>的时候特别的深刻，在后续找工作中因为在这方面的理解也脱颖而出.BTW,<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/MVC">MVC</a>其实就是一种对代码进行结构分层的方法，毕竟把所有的类放在一个文件这并不优雅。接下来引用一下教程中的的图片来理解。</p>
+<p><img src="/mvc.png" alt="mvc"></p>
+<p>上图中代表了3个模块之间的交互方式，不过在这之前，我想先分开说下3者的职责</p>
+<p><u><em><strong>代码分层的原则</strong></em></u></p>
+<ul>
+<li><strong>Model:</strong> The <strong>Model</strong> has to do with <strong>what</strong> your application does. It has nothing to do with how the app is displayed, or drawn on screen. 但是其实在我接触的大部分开发者来说，大家并不会在model中写处理逻辑的代码，只是做了一个简单的数据解析的接受层来用。这太可惜了</li>
+<li><strong>Controller:</strong>  The Controller has to do with <strong>how</strong> the <strong>Model</strong> is displayed, or presented on screen (UI Logic).可以理解为C是一个中间人，他负责那个model交付于哪个view，负责view和model的一种交互</li>
+<li><strong>View:</strong>  The <strong>Views</strong> are your <strong>Controller</strong>’s minions. These are the things the <strong>Controller</strong> is going to use to put things on the screen like buttons, labels, tables, etc. to display what is in the <strong>Model</strong>, and to get input from the user to update the <strong>Model.</strong> View就像个工具人，有点像我们硬件中的GPU,单纯做展示，拿到model之后就把这些数据展示到自身上</li>
+</ul>
+<p><u><em><strong>三者的交互</strong></em></u></p>
+<ul>
+<li><strong>View&amp;model</strong>： 如图中之间的黄线所示，这是不允许做任何交互的，这也是中间C的职责所在</li>
+<li><strong>Model&amp;Controller:</strong> 首先,model并不允许持有C,不允许接受任何C的状态。C单方面持有Model，对其进行操作和改变。当model自身发生改变，需要通知外界时，利用KVO&amp;Notification来进行告知</li>
+<li><strong>View&amp;Controller:</strong> C持有View,所以可以对View做一切操作。反过来，View并不允许持有C.但是它有着一些自己的交互方式。例如Target Action。这是Button的API，可以告诉target自己被点击了。从而做出对应的Action的响应。还有经典的tableView的delegate和source的api。都是View和controller的交互方式</li>
+</ul>
+<p>用一个音乐播放列表的的demo来解释这三者。首先controller会拿到10首歌曲(model)，给到view.于是view展示10条数据。但是当用户网上翻滚的时候，view滚到极限了，就会去问controller.我接下来该展示什么。于是C就找model拿更多的数据交付给View.形成整个闭环。可惜的是，大部分见到的oc开发者的model，只是个避免面向dictionary开发的数据层。</p>
+<h2 id="MVVM"><a href="#MVVM" class="headerlink" title="MVVM"></a><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/MVC">MVVM</a></h2><p>随着业务的增加，MVC中的C越来越臃肿，为了给C减负，于是衍生出VM来接替一些C的工作，例如网络请求,数据缓存…等等，保证C只做交互和控制器的跳转。</p>
+<p>但是在这里我并不想说这种MVVM，我想聊聊FRP+MVVM,尽管在命令式UI中，这种方式让我们的代码依旧表现出尽可能的优雅并且可读性高。</p>
+<p>在这里model和View依旧做着和MVC同样的事情，不过让我们对ViewModel做一些改造</p>
+<p><img src="/mvvm.png" alt="mvvm"></p>
+<p>​     我们拿单独的一个页面来说讲一下：对于一个页面的展示(View)来说。这个页面来的变化只会在页面初始化，网络数据加载，以及一些用户的操作会引起页面的变化。我们把思维稍微抽象化一点。我们把用户在这个页面停留的这一串时间想象成一个数组，把用户的所有的这些行为可以理解为这个时间段上事件流有序的元素。并且提前把每个元素要对应页面改变定义好，绑定在View上,所以只要当有这个时间发生时，页面就做出相应的反应。这个相应反应的过程就是响应式UI（Reactive）,但是如何把事件流的元素转换成UI所需要的数据呢。这里需要用到函数式编程的思想(Functional)，只不过以往的函数式的操作的元素是一些基本的数据类型.我们只需要抽象一下思想，把元素集合想象成事件流，把每个事件想象成元素</p>
+<p>​    这个转换的过程在那里做呢，这就是ViewModel的功能，如上图，我们在构建一个页面时，我们可以提前把所有会对UI造成影响的行为列出来，叫做Input,各种各样的Input分好类。组成Inputs,然后把UI所期待的反应的数据想象成对应的OutPuts。然后再在对应的ViewModel中去做转换。还是如上图中，可以把ViewModel理解成一个管道，进来的可能是水，在ViewModel中做了转换之后，可能是果汁，交给对应的subscriber。<br>​    <img src="/code.png" alt="code"></p>
+<p>上图我很多年前写的一个做比赛投彩的项目，当时有一个页面的需求是展示出所有的比赛列表，并且可以做排序。在上面我们就可以把用户点击一个日期排序按钮作为input输入，然后过滤出没有比赛的，然后转换成tableView用的数据。然后交给VC绑定给tableview。这样做的好处是什么，首先避免了大量的异步编程，大量的回调和代码会影响我们的思维一直向前的逻辑。代码阅读性高,提前在写代码之前想好构思，这样写法可以让代码按照我们的思路来走，并且更好的做单元测试。</p>
+<h3 id="声明式UI"><a href="#声明式UI" class="headerlink" title="声明式UI"></a>声明式UI</h3><p>在过去的iOS的编程中，我们用到的都是命令式UI,在说到swiftui之前，想先聊聊声明式UI。那么什么是声明式UI</p>
+<p>想象我们要实现下面这个界面：</p>
+<p>打开开关就让下面的 label 显示 on，反之显示 off。如果我们要用非声明式的方式实现，即命令式，那么需要：</p>
+<ul>
+<li>创建一个 <code>UISwitch</code>，设置它的 change 事件 handler</li>
+<li>创建一个 <code>UILabel</code></li>
+<li>创建一个 <code>UIStackView</code>，设置方向为垂直</li>
+<li>将 1、2 创建的两个视图添加到 <code>UIStackView</code> 中</li>
+<li>change 事件触发时读取开关的当前状态，设置相应字符串到 label 中</li>
+</ul>
+<p>这样做面对一个状态，我们尚且能够正确处理，但随着应用日渐复杂，状态也越来越多并且错综复杂，状态变化的顺序甚至也能影响应用逻辑的正确性，因为我们对每个事件的处理都是对界面的增量修改。一旦前一个状态有错误，后面就会错上加错，接下来多线程混入，然后 boom，你的应用可能就 crash 了。</p>
+<p>声明式的意思就是让我们描述我们需要一个什么样的界面，而不是告诉计算机一步一步干什么。那么上面的例子用声明式就是这样：</p>
+<blockquote>
+<p>“我需要一个界面，它是一个 VStack（垂直布局），里面有一个开关，开关的值与 switchValue 的布尔值绑定，VStack 里接下来是一个 Text，它的值当 switchValue 为 true 时是 foo，否则是 bar”</p>
+</blockquote>
+<p>我们可以发现，全文没有命令，都是在描述界面是怎样的。<code>switchValue</code> 我们称之为 “The Source of Truth”，Toggle 的状态、Text 的文本内容都与它相绑定。状态变化时，界面按照先前描述的重新“渲染”即可得到状态绝对正确的界面。这正是声明式的优势所在，<strong>降低状态增加时界面维护的复杂度</strong>。</p>
+<h3 id="SwiftUI"><a href="#SwiftUI" class="headerlink" title="SwiftUI"></a><a target="_blank" rel="noopener" href="https://developer.apple.com/xcode/swiftui/">SwiftUI</a></h3><p>   我个人每年都会看一下斯坦福的<a target="_blank" rel="noopener" href="https://cs193p.sites.stanford.edu/">CS193P</a>来获取比较前沿而且专业的知识，这门课程真的值得一学。今年讲到了<a target="_blank" rel="noopener" href="https://developer.apple.com/xcode/swiftui/">SwiftUI</a> ,所以就跟着过了一遍。写完了几个assignments之后，前几年写mvvm+frp的感觉又回来了。而且这可是原生的mvvm，共同之处我就不再阐述，这里只是说一下额外的爽点</p>
+<ul>
+<li><p><strong>FRP的改变:</strong> 利用combine框架来代替SwiftUI,并且衍生出了很多语法糖,Property wrapper，类似@Published， @ObervedObject， @State, @Binding 等等之类的东西。在现在你如果View中的内容根据model的任何成员变量的改变而改变，那可太简单了。</p>
+  <figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在viewModel中的model前加上@published，代表这个成员变量每次改动会发出信号</span></span><br><span class="line"><span class="meta">@Published</span> <span class="keyword">private</span> <span class="keyword">var</span> memoryGame: <span class="type">MemoryGame</span>&lt;<span class="type">String</span>&gt; <span class="operator">=</span> <span class="type">EmojiMemoryGame</span>.createMemoryGame()</span><br><span class="line"></span><br><span class="line"><span class="comment">// 在View中的viewModel前加上@ObservedObject，代表观察中这个变量内部发出的信号，然后自己会在合适的时机更新ui到最新的数据</span></span><br><span class="line"><span class="meta">@ObservedObject</span> <span class="keyword">var</span> emojiMemoryGame <span class="operator">=</span> <span class="type">EmojiMemoryGame</span>()</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+</li>
+<li><p><strong>更轻量级的应用：</strong> 在SwiftUI中，所有的model应该都是结构体这个时候可以巧妙的利用stuct的<a target="_blank" rel="noopener" href="https://medium.com/@marthin.pasaribu_72336/copy-on-write-cow-with-swift-ce6c6583de38">COW</a>的机制，任何成员变量的改变都会触发信号流的刷新</p>
+</li>
+<li><p><strong>声明式UI:</strong> 在上上章MVVM的例子里，我们的代码依旧不可避免出命令式的代码，例如最起码的数据绑定，在声明式UI中，我们直接去View的文件中，可以直接看到页面的布局、元素、以及每个View上要绑定的数据，清晰明了</p>
+</li>
+</ul>
+<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>​     在写命令式UI的代码，有时候几个月不写的代码自己回头去找布局都需要打开视图层来查找。好像声明式ui再也不会有这样的痛苦，再也不用去做各种updateUI的代码，一切所见即所得。</p>
+<p>​    在爽完2周的swiftui之旅，真的感觉有点回不去了，不过等待swiftui的普及，还需要很长的路要走，希望那一天不会太远。接下来一段时间打算再看看flutter，然后再做一个对比，希望能再有所提升</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/swift/SwiftUI%E5%88%9D%E4%BD%93%E9%AA%8C/" data-id="cmdft9lli000eydwc6n5j07g6" data-title="SwiftUI初体验" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/%E7%BC%96%E8%AF%91%E9%80%9F%E5%BA%A6%E4%BC%98%E5%8C%96%E5%AE%9E%E8%B7%B5/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">前一篇</strong>
+      <div class="article-nav-title">
+        
+          编译速度优化实践
+        
+      </div>
+    </a>
+  
+  
+    <a href="/swift/swiftMonkey%E7%9A%84%E5%AE%9E%E8%B7%B5/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">后一篇</strong>
+      <div class="article-nav-title">swiftMonkey的实践</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">分类</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/swift/">swift</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/">工作总结</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%91%84%E5%BD%B1/">摄影</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%80%86%E5%90%91/">逆向</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/">项目优化</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/development/" rel="tag">development</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/flutter/" rel="tag">flutter</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ios/" rel="tag">ios</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/mapbox/" rel="tag">mapbox</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/plugin/" rel="tag">plugin</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spm/" rel="tag">spm</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/development/" style="font-size: 10px;">development</a> <a href="/tags/flutter/" style="font-size: 10px;">flutter</a> <a href="/tags/ios/" style="font-size: 10px;">ios</a> <a href="/tags/mapbox/" style="font-size: 10px;">mapbox</a> <a href="/tags/plugin/" style="font-size: 10px;">plugin</a> <a href="/tags/spm/" style="font-size: 10px;">spm</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2025/07/">七月 2025</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/12/">十二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/07/">七月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/05/">五月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/04/">四月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/03/">三月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/02/">二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/01/">一月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/12/">十二月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/11/">十一月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/08/">八月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/uncategorized/hello-world/">Hello World</a>
+          </li>
+        
+          <li>
+            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/Flutter-Plugin%E4%BB%8ECocoaPods%E8%BF%81%E7%A7%BB%E5%88%B0SPM/">Flutter Plugin 从 CocoaPods 迁移到 SPM</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/iOS%E7%9A%84APP%E7%98%A6%E8%BA%AB/">iOS的APP瘦身</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">iOS组件二进制化实践</a>
+          </li>
+        
+          <li>
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">Airtest的简单使用</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2025 青禾<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>

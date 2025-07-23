@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>KVO和KVC | 遇见青禾</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="前言其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下 KVOKVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下 KVO的使用12345678910111213141516171819202122- (voi">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KVO和KVC">
+<meta property="og:url" content="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下 KVOKVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下 KVO的使用12345678910111213141516171819202122- (voi">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/kvo1.png">
+<meta property="og:image" content="http://qingheblog.online/kvo2.png">
+<meta property="og:image" content="http://qingheblog.online/kvo3.png">
+<meta property="og:image" content="http://qingheblog.online/kvo4.png">
+<meta property="og:image" content="http://qingheblog.online/kvo5.png">
+<meta property="og:image" content="http://qingheblog.online/kvo6.png">
+<meta property="og:image" content="http://qingheblog.online/kvo7.png">
+<meta property="og:image" content="http://qingheblog.online/kvo8.png">
+<meta property="article:published_time" content="2021-01-11T02:04:08.000Z">
+<meta property="article:modified_time" content="2025-07-23T10:18:10.231Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/kvo1.png">
+  
+    <link rel="alternate" href="/atom.xml" title="遇见青禾" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">遇见青禾</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">qingheblog.online</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS 订阅"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="搜索"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="搜索"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://qingheblog.online"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-KVO和KVC" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/" class="article-date">
+  <time class="dt-published" datetime="2021-01-11T02:04:08.000Z" itemprop="datePublished">2021-01-11</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      KVO和KVC
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>其实很早之前就接触过kvo了，知道是通过派生类以及钩子一起实现，但是还是好奇想证实一下。kvc也大概知道是从一些键值对来取值赋值，但是老是忘，所以干脆写一篇博客总结一下</p>
+<h4 id="KVO"><a href="#KVO" class="headerlink" title="KVO"></a>KVO</h4><p>KVO的全称是Key-Value Observing，俗称“键值监听”，可以用于监听某个对象属性值的改变,大概的使用代码如下</p>
+<h6 id="KVO的使用"><a href="#KVO的使用" class="headerlink" title="KVO的使用"></a>KVO的使用</h6><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    // Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 = [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 = p1;</span><br><span class="line">    NSLog(@&quot;%p&quot;,p1);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)touchesBegan:(NSSet&lt;UITouch *&gt; *)touches withEvent:(UIEvent *)event &#123;</span><br><span class="line">    self.p1.age = 20;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context</span><br><span class="line">&#123;</span><br><span class="line">    if ([keyPath  isEqual: @&quot;age&quot;]) &#123;</span><br><span class="line">        NSLog(@&quot;%p的new value = %zd,old value = %zd&quot;,object,[change[@&quot;new&quot;] integerValue] ,[change[@&quot;old&quot;] integerValue]);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>调用addobserver方法来监听哪个对象，由哪个对象监听。监听什么变量，以及一些options和context来传递参数</li>
+<li>在监听对象的上下文里调用observeValueForKeyPath来监听。通过对应的参数取值</li>
+</ol>
+<h6 id="KVO的探索"><a href="#KVO的探索" class="headerlink" title="KVO的探索"></a>KVO的探索</h6><p>当我再创建一个对象p2，同样的在改变p1的同时也改变p2的值，但是我不监听p2的改变。如预期一样，在观察函数中并没有收到p2改变的信息。</p>
+<p>尽管结果如我预期，但是我还是好奇，其实2个对象都只是执行了set方法，为什么一个会走监听一个不会走监听呢？基于之前说过一个是派生类，于是我决定打印一下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    // Do any additional setup after loading the view.</span><br><span class="line">    Person *p1 = [[Person alloc] init];</span><br><span class="line">    [p1 addObserver:self forKeyPath:@&quot;age&quot; options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];</span><br><span class="line">    self.p1 = p1;</span><br><span class="line">    </span><br><span class="line">    Person *p2 = [[Person alloc] init];</span><br><span class="line">    self.p2 = p2;</span><br><span class="line"></span><br><span class="line">    NSLog(@&quot;p1的地址为%p,p2的地址为%p&quot;,p1, p2);</span><br><span class="line">    NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(p1.class), NSStringFromClass(p2.class));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/kvo1.png" alt="KVO和KVC"></p>
+<p>但是并没有得到我想要的结果，但是因为之前获取内存那里用不同的api得到了不同结果，吸取教训。我用其他的api试试</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">NSLog(@&quot;p1的class为%@,p2的class为%@&quot;,NSStringFromClass(object_getClass(p1)), NSStringFromClass(object_getClass(p2)));</span><br></pre></td></tr></table></figure>
+
+<p><img src="/kvo2.png" alt="KVO和KVC"></p>
+<p>果然，p1在添加观察者之后他的类名变了。而且这个类显然不是由系统创建的，这个可以提前说一下，是runtime调用api动态创建的。另外，在前面一章我们知道对象的isa是指向类对象的。所以应该是创建了一个新类对象，然后改变了isa的指向。另外我们也说过，是通过isa去找类对象里的方法实现(因为调用的是setAge，是个对象方法)。所以我想分别再打印一下他们的imp</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">IMP imp1 = [p1 methodForSelector:@selector(setAge:)];</span><br><span class="line">IMP imp2= [p2 methodForSelector:@selector(setAge:)];</span><br><span class="line">NSLog(@&quot;p1的实现是%p，p2的实现是%p&quot;,imp1,imp2);</span><br></pre></td></tr></table></figure>
+
+<p><img src="/kvo3.png" alt="KVO和KVC"></p>
+<p>结果大出意料，被监听的对象的imp也成了一个c语言函数，通过函数名很好理解，设了一个longlong类型并且通知，所以可以猜测得到如果监听到其他类型应该也有对应函数的实现。其实这一点我们可以搜索一下，我们可以直接在foundation框架通过关键字搜索。首先手动用clang手动编译并且链接Foundation，然后调用nm 命令来通过关键字ValueAndNotify来查找，结果如下<img src="/kvo4.png" alt="KVO和KVC"></p>
+<p>所以我们也可以推算这个是看碟下菜，什么类型就调用对应的函数</p>
+<h6 id="派生类的内部探究"><a href="#派生类的内部探究" class="headerlink" title="派生类的内部探究"></a>派生类的内部探究</h6><p>另外，我想跟进一步看看这个派生类，所以就干脆利用runtime来打印所有的iv ars和方法名。结果总结成图是这个样子</p>
+<p><img src="/kvo5.png" alt="KVO和KVC"></p>
+<p>由于里面重写了class，所以就造成了我们开始调用class发现没有改变的事实，其实我猜测就是为了封装性，因为对于正在编写代码的你我来说，并不需要知道知道他是什么类，他有person类的一些特质，我们就把它当成person类。也方便我们做一些类型比较。</p>
+<h6 id="NSSetIntValueAndNotify的实现"><a href="#NSSetIntValueAndNotify的实现" class="headerlink" title="NSSetIntValueAndNotify的实现"></a>NSSetIntValueAndNotify的实现</h6><p>我们目前只知道了他变相Hook了原始方法为一个c语言的函数，但是我们还是想知道具体的实现。由于之前学过逆向，这个也不难，找到越狱机，导出sharecache，这里就有foudation的实现。通过ida来反汇编，可以通过汇编来看出一些端倪。这里就不具体展示，直接总结了</p>
+<p><img src="/kvo6.png" alt="KVO和KVC"></p>
+<p>大概就是这样，kvo对外的通知其实就是通过3句函数来实现的，在will和did之间完成赋值操作。外界就会收到observer的改变</p>
+<ul>
+<li>调用willChangeValueForKey:</li>
+<li>调用原来的setter实现</li>
+<li>调用didChangeValueForKey:</li>
+<li>didChangeValueForKey:内部会调用observer的observeValueForKeyPath:ofObject:change:context:方法</li>
+</ul>
+<h4 id="KVC"><a href="#KVC" class="headerlink" title="KVC"></a>KVC</h4><p>相对于KVO来说KVC就简单许多，KVC的全称是Key-Value Coding，俗称“键值编码”，可以通过一个key来访问(获取、设值)某个属性</p>
+<h6 id="KVC的使用"><a href="#KVC的使用" class="headerlink" title="KVC的使用"></a>KVC的使用</h6><figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)setValue:(<span class="type">id</span>)value forKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="type">void</span>)setValue:(<span class="type">id</span>)value forKey:(<span class="built_in">NSString</span> *)key;</span><br><span class="line">- (<span class="type">id</span>)valueForKeyPath:(<span class="built_in">NSString</span> *)keyPath;</span><br><span class="line">- (<span class="type">id</span>)valueForKey:(<span class="built_in">NSString</span> *)key; </span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h6 id="KVC的函数寻找途径"><a href="#KVC的函数寻找途径" class="headerlink" title="KVC的函数寻找途径"></a>KVC的函数寻找途径</h6><p>其实这个在kvc的官方文档就有写，就用图来表示</p>
+<p><img src="/kvo7.png" alt="KVO和KVC"></p>
+<p><img src="/kvo8.png" alt="KVO和KVC"></p>
+<h6 id="注意点"><a href="#注意点" class="headerlink" title="注意点"></a>注意点</h6><p>通过实践得知，我们就算不通过property的方式来生成成员变量，而是直接手动生成属性。尽管这样不会生成set,get方法。通过kvc去赋值成功之后也会触发kvo。因为我们之前说过,kvo的本质还是通过willchange 和didchange之间的组合来做的操作，kvc在做赋值时自己做了对应的实现。切不可把kvo直接等价于set变量的hook实现</p>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>通过一系列探究，我们知道了kvo的具体实现，以及派生类的内部，并且知道了kvo支持的数据类型。以及kvc的一些寻值路径。特别要记住一点，kvc会自动触发kvo,尽管没有set方法</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/KVO%E5%92%8CKVC/" data-id="cmdft9ll80005ydwc3hm2ht1v" data-title="KVO和KVC" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/AssociatedObject/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">前一篇</strong>
+      <div class="article-nav-title">
+        
+          AssociatedObject
+        
+      </div>
+    </a>
+  
+  
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E7%B1%BB%E7%9A%84%E6%9C%AC%E8%B4%A8/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">后一篇</strong>
+      <div class="article-nav-title">类的本质</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">分类</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/swift/">swift</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/">工作总结</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%91%84%E5%BD%B1/">摄影</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%80%86%E5%90%91/">逆向</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/">项目优化</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/development/" rel="tag">development</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/flutter/" rel="tag">flutter</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ios/" rel="tag">ios</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/mapbox/" rel="tag">mapbox</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/plugin/" rel="tag">plugin</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spm/" rel="tag">spm</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/development/" style="font-size: 10px;">development</a> <a href="/tags/flutter/" style="font-size: 10px;">flutter</a> <a href="/tags/ios/" style="font-size: 10px;">ios</a> <a href="/tags/mapbox/" style="font-size: 10px;">mapbox</a> <a href="/tags/plugin/" style="font-size: 10px;">plugin</a> <a href="/tags/spm/" style="font-size: 10px;">spm</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2025/07/">七月 2025</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/12/">十二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/07/">七月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/05/">五月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/04/">四月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/03/">三月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/02/">二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/01/">一月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/12/">十二月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/11/">十一月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/08/">八月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/uncategorized/hello-world/">Hello World</a>
+          </li>
+        
+          <li>
+            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/Flutter-Plugin%E4%BB%8ECocoaPods%E8%BF%81%E7%A7%BB%E5%88%B0SPM/">Flutter Plugin 从 CocoaPods 迁移到 SPM</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/iOS%E7%9A%84APP%E7%98%A6%E8%BA%AB/">iOS的APP瘦身</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">iOS组件二进制化实践</a>
+          </li>
+        
+          <li>
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">Airtest的简单使用</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2025 青禾<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>

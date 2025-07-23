@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>二叉树的最大宽度 | 遇见青禾</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="前言最近在复习二叉树相关的知识，在力扣上看到这道题，觉得挺有意思的。看到就想肯定是要用层序遍历，但是最开始用了很笨的方法，性能果然有问题，后面看了一些相关的注解，觉得真的是妙不可言 满二叉树 当一棵树是满二叉树时，我们可以给每个对应的节点上索引，例如a根结点的索引为i,可以分别对他的左右节点赋值为2i和2i+1。例如上图中，a的索引就是1,B是2，c是3，而d和e作为b的节点，分别则为4和5.这样">
+<meta property="og:type" content="article">
+<meta property="og:title" content="二叉树的最大宽度">
+<meta property="og:url" content="http://qingheblog.online/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:description" content="前言最近在复习二叉树相关的知识，在力扣上看到这道题，觉得挺有意思的。看到就想肯定是要用层序遍历，但是最开始用了很笨的方法，性能果然有问题，后面看了一些相关的注解，觉得真的是妙不可言 满二叉树 当一棵树是满二叉树时，我们可以给每个对应的节点上索引，例如a根结点的索引为i,可以分别对他的左右节点赋值为2i和2i+1。例如上图中，a的索引就是1,B是2，c是3，而d和e作为b的节点，分别则为4和5.这样">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://qingheblog.online/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A61.png">
+<meta property="og:image" content="http://qingheblog.online/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A62.png">
+<meta property="article:published_time" content="2021-04-13T08:18:38.000Z">
+<meta property="article:modified_time" content="2025-07-23T10:18:09.981Z">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://qingheblog.online/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A61.png">
+  
+    <link rel="alternate" href="/atom.xml" title="遇见青禾" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">遇见青禾</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">qingheblog.online</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS 订阅"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="搜索"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="搜索"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://qingheblog.online"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-二叉树的最大宽度" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/" class="article-date">
+  <time class="dt-published" datetime="2021-04-13T08:18:38.000Z" itemprop="datePublished">2021-04-13</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      二叉树的最大宽度
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>最近在复习二叉树相关的知识，在力扣上看到<a target="_blank" rel="noopener" href="https://leetcode-cn.com/problems/maximum-width-of-binary-tree/">这道题</a>，觉得挺有意思的。看到就想肯定是要用层序遍历，但是最开始用了很笨的方法，性能果然有问题，后面看了一些相关的注解，觉得真的是妙不可言</p>
+<h4 id="满二叉树"><a href="#满二叉树" class="headerlink" title="满二叉树"></a>满二叉树</h4><p><img src="/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A61.png" alt="二叉树的最大宽度"></p>
+<p>当一棵树是满二叉树时，我们可以给每个对应的节点上索引，例如a根结点的索引为i,可以分别对他的左右节点赋值为2i和2i+1。例如上图中，a的索引就是1,B是2，c是3，而d和e作为b的节点，分别则为4和5.这样每个节点都有自己独一无二的索引。而且每一层的宽度，恰好是最右的节点的索引-最左的节点 + 1.</p>
+<h4 id="代码"><a href="#代码" class="headerlink" title="代码"></a>代码</h4><p>废话不多说直接上代码，由于个人主要擅长oc和swift，就拿swift来求解</p>
+<figure class="highlight swift"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">TreeNode</span> &#123;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> val: <span class="type">Int</span></span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> left: <span class="type">TreeNode</span>?</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">var</span> right: <span class="type">TreeNode</span>?</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>() &#123; <span class="keyword">self</span>.val <span class="operator">=</span> <span class="number">0</span>; <span class="keyword">self</span>.left <span class="operator">=</span> <span class="literal">nil</span>; <span class="keyword">self</span>.right <span class="operator">=</span> <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="keyword">_</span> <span class="params">val</span>: <span class="type">Int</span>) &#123; <span class="keyword">self</span>.val <span class="operator">=</span> val; <span class="keyword">self</span>.left <span class="operator">=</span> <span class="literal">nil</span>; <span class="keyword">self</span>.right <span class="operator">=</span> <span class="literal">nil</span>; &#125;</span><br><span class="line">     <span class="keyword">public</span> <span class="keyword">init</span>(<span class="keyword">_</span> <span class="params">val</span>: <span class="type">Int</span>, <span class="keyword">_</span> <span class="params">left</span>: <span class="type">TreeNode</span>?, <span class="keyword">_</span> <span class="params">right</span>: <span class="type">TreeNode</span>?) &#123;</span><br><span class="line">         <span class="keyword">self</span>.val <span class="operator">=</span> val</span><br><span class="line">         <span class="keyword">self</span>.left <span class="operator">=</span> left</span><br><span class="line">         <span class="keyword">self</span>.right <span class="operator">=</span> right</span><br><span class="line">     &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="keyword">static</span> <span class="keyword">func</span> <span class="title function_">widthOfBinaryTree</span>(<span class="keyword">_</span> <span class="params">root</span>: <span class="type">TreeNode</span>?) -&gt; <span class="type">Int</span> &#123;</span><br><span class="line">        <span class="keyword">guard</span> <span class="keyword">let</span> root <span class="operator">=</span> root <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 定义一个栈保存元组，0代表节点，1代表下标</span></span><br><span class="line">        <span class="keyword">var</span> stack <span class="operator">=</span> [(<span class="type">TreeNode</span>, <span class="type">Int</span>)]()</span><br><span class="line">        stack.append((root, <span class="number">1</span>))</span><br><span class="line">        <span class="keyword">var</span> maxWidth <span class="operator">=</span> <span class="number">1</span></span><br><span class="line"> </span><br><span class="line">        <span class="keyword">while</span> <span class="operator">!</span>stack.isEmpty &#123;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 层序遍历</span></span><br><span class="line">            <span class="keyword">for</span> <span class="keyword">_</span> <span class="keyword">in</span> <span class="number">0</span><span class="operator">..&lt;</span>stack.count &#123;</span><br><span class="line">                <span class="keyword">let</span> (node, stackIndex) <span class="operator">=</span> stack.removeFirst()</span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> left <span class="operator">=</span> node.left &#123;</span><br><span class="line">                    stack.append((left, stackIndex <span class="operator">&amp;*</span> <span class="number">2</span>))</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">let</span> right <span class="operator">=</span> node.right &#123;</span><br><span class="line">                    stack.append((right, stackIndex <span class="operator">&amp;*</span> <span class="number">2</span> <span class="operator">&amp;+</span> <span class="number">1</span>))</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> stack.count <span class="operator">&gt;</span> <span class="number">1</span> &#123;</span><br><span class="line">                <span class="comment">// 算出下一层的宽度和已遍历层的最大宽度</span></span><br><span class="line">                <span class="keyword">let</span> maxFloorWidth <span class="operator">=</span> stack.last<span class="operator">!</span>.<span class="number">1</span> <span class="operator">&amp;-</span> stack.first<span class="operator">!</span>.<span class="number">1</span> <span class="operator">&amp;+</span> <span class="number">1</span>;</span><br><span class="line">                maxWidth <span class="operator">=</span> <span class="built_in">max</span>(maxWidth, maxFloorWidth)</span><br><span class="line">                </span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> maxWidth</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">    </span><br></pre></td></tr></table></figure>
+
+<p>跑一下力扣</p>
+<p><img src="/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A62.png" alt="二叉树的最大宽度"></p>
+<p>速度和性能都不错在swift横向对比中，代表也表简介</p>
+<h4 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h4><p>其实本质就是借用满二叉树的思路配合层序遍历，找出最值</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E7%AE%97%E6%B3%95/%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E6%9C%80%E5%A4%A7%E5%AE%BD%E5%BA%A6/" data-id="cmdft9lm5001nydwc1ze30jlw" data-title="二叉树的最大宽度" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/%E6%91%84%E5%BD%B1/%E6%9E%84%E5%9B%BE%E5%88%9D%E6%AD%A5%E5%AD%A6%E4%B9%A0/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">前一篇</strong>
+      <div class="article-nav-title">
+        
+          构图初步学习
+        
+      </div>
+    </a>
+  
+  
+    <a href="/%E6%91%84%E5%BD%B1/%E6%91%84%E5%BD%B1%E5%85%A5%E9%97%A8/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">后一篇</strong>
+      <div class="article-nav-title">摄影入门</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">分类</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/swift/">swift</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/">工作总结</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%91%84%E5%BD%B1/">摄影</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%80%86%E5%90%91/">逆向</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/">项目优化</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/development/" rel="tag">development</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/flutter/" rel="tag">flutter</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ios/" rel="tag">ios</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/mapbox/" rel="tag">mapbox</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/plugin/" rel="tag">plugin</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spm/" rel="tag">spm</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/development/" style="font-size: 10px;">development</a> <a href="/tags/flutter/" style="font-size: 10px;">flutter</a> <a href="/tags/ios/" style="font-size: 10px;">ios</a> <a href="/tags/mapbox/" style="font-size: 10px;">mapbox</a> <a href="/tags/plugin/" style="font-size: 10px;">plugin</a> <a href="/tags/spm/" style="font-size: 10px;">spm</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2025/07/">七月 2025</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/12/">十二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/07/">七月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/05/">五月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/04/">四月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/03/">三月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/02/">二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/01/">一月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/12/">十二月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/11/">十一月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/08/">八月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/uncategorized/hello-world/">Hello World</a>
+          </li>
+        
+          <li>
+            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/Flutter-Plugin%E4%BB%8ECocoaPods%E8%BF%81%E7%A7%BB%E5%88%B0SPM/">Flutter Plugin 从 CocoaPods 迁移到 SPM</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/iOS%E7%9A%84APP%E7%98%A6%E8%BA%AB/">iOS的APP瘦身</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">iOS组件二进制化实践</a>
+          </li>
+        
+          <li>
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">Airtest的简单使用</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2025 青禾<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>

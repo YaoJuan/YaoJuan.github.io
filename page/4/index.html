@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>遇见青禾</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta property="og:type" content="website">
+<meta property="og:title" content="遇见青禾">
+<meta property="og:url" content="http://qingheblog.online/page/4/index.html">
+<meta property="og:site_name" content="遇见青禾">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:author" content="青禾">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="遇见青禾" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 7.3.0"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">遇见青禾</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">qingheblog.online</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS 订阅"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="搜索"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="搜索"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://qingheblog.online"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main">
+  
+    <article id="post-浅谈函数调用栈" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/" class="article-date">
+  <time class="dt-published" datetime="2020-05-14T07:13:36.000Z" itemprop="datePublished">2020-05-14</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/">浅谈函数调用栈</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>目前项目需要做一个检测卡顿的工具，但是在检测卡顿完我们肯定是希望能找出具体的函数调用栈方便查找问题以及业务同学更改。所以我们需要提前准备一个能够实时查看函数调用栈的工具，其实这些已经有比较成熟的方案了，但是我们还是需要知道这些原理。</p>
+<h3 id="系统方法"><a href="#系统方法" class="headerlink" title="系统方法"></a>系统方法</h3><p>我们知道 <code>NSThread</code> 有一个类方法 <code>callstackSymbols</code> 可以获取调用栈，但是它输出的是当前线程的调用栈。局限性很大，我们更多的时候是在一个子线程长期观测其他线程的状态</p>
+<p>最简单、自然的想法就是利用 <code>dispatch_async</code> 或 <code>performSelectorOnMainThread</code> 等方法，回到主线程并获取调用栈。但是并不可行</p>
+<p>我们以 <code>UIViewController</code> 的<code>viewDidLoad</code> 方法为例，推测它底层都发生了什么。</p>
+<p>首先主线程也是线程，就得按照线程基本法来办事。线程基本法说的是首先要把线程运行起来，然后(如果有必要，比如主线程)启动 runloop 进行保活。我们知道 runloop 的本质就是一个死循环，在循环中调用多个函数，分别判断 source0、source1、timer、dispatch_queue 等事件源有没有要处理的内容。</p>
+<p>和 UI 相关的事件都是 source0，因此会执行 <code>__CFRunLoopDoSources0</code>，最终一步步走到 <code>viewDidLoad</code>。当事件处理完后 runloop 进入休眠状态。</p>
+<p>假设我们使用 <code>dispatch_async</code>，它会唤醒 runloop 并处理事件，但此时 <code>__CFRunLoopDoSources0</code> 已经执行完毕，不可能获取到 <code>viewDidLoad</code> 的调用栈。</p>
+<p><code>performSelector</code> 系列方法的底层也依赖于 runloop，因此它只是像当前的 runloop 提交了一个任务，但是依然要等待现有任务完成以后才能执行，所以拿不到实时的调用栈。</p>
+<h3 id="寄存器"><a href="#寄存器" class="headerlink" title="寄存器"></a><a href="%5Bhttps://zh.wikipedia.org/zh/%E5%AF%84%E5%AD%98%E5%99%A8%5D(https://zh.wikipedia.org/zh/%E5%AF%84%E5%AD%98%E5%99%A8)">寄存器</a></h3><p>寄存器是和CPU联系非常紧密的一小块内存，经常用于存储一些正在使用的数据。ARM64 有34个寄存器，包括31个通用寄存器、SP、PC、CPSR。调用约定指定他们其中的一些寄存器有特殊的用途，例如：</p>
+<ul>
+<li>x0-x28：通用寄存器，如果有需要可以当做32bit使用：WO-W30(兼容32位)</li>
+<li>x29(FP)：通常用作桢指针fp（frame pointer寄存器），栈帧基址寄存器，指向当前函数栈帧的栈底</li>
+<li>x30(LR)：是链接寄存器lr(link register)。它保存了当目前函数返回时下一个函数的地址；</li>
+<li>SP：栈指针sp(stack pointer)。在计算机科学内栈是非常重要的术语。寄存器存放了一个指向栈顶的指针。使用 SP&#x2F;WSP来进行对SP寄存器的访问。</li>
+<li>PC：是程序计数器pc(program counter)。它存放了当前执行指令的地址。在每个指令执行完成后会自动增加；</li>
+<li>CPSR: 状态寄存器</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">_STRUCT_ARM_THREAD_STATE64</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">__uint64_t</span> __x[<span class="number">29</span>];     <span class="comment">/* General purpose registers x0-x28 */</span></span><br><span class="line">    <span class="type">void</span>*      __opaque_fp; <span class="comment">/* Frame pointer x29 */</span></span><br><span class="line">    <span class="type">void</span>*      __opaque_lr; <span class="comment">/* Link register x30 */</span></span><br><span class="line">    <span class="type">void</span>*      __opaque_sp; <span class="comment">/* Stack pointer x31 */</span></span><br><span class="line">    <span class="type">void</span>*      __opaque_pc; <span class="comment">/* Program counter */</span></span><br><span class="line">    <span class="type">__uint32_t</span> __cpsr;      <span class="comment">/* Current program status register */</span></span><br><span class="line">    <span class="type">__uint32_t</span> __opaque_flags; <span class="comment">/* Flags describing structure format */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>不同指令集的寄存器数量可能会不同，pc、lr、sp、fp也可能使用其中不同的寄存器。后面我们先忽略X29等寄存器编号，直接用fp，sp，lr来讲述</p>
+<h3 id="栈"><a href="#栈" class="headerlink" title="栈"></a><a href="%5Bhttps://zh.wikipedia.org/wiki/%E5%A0%86%E6%A0%88%5D(https://zh.wikipedia.org/wiki/%E5%A0%86%E6%A0%88)">栈</a></h3><p>栈：是一种具有特殊的访问方式的存储空间（后进先出， Last In Out Firt，LIFO）</p>
+<blockquote>
+<p>Stack 是由内存区域的结束地址开始，从高位（地址）向低位（地址）分配。比如，内存区域的结束地址是0x8000，第一帧假定是16字节，那么下一次分配的地址就会从0x7FF0开始；第二帧假定需要64字节，那么地址就会移动到0x7FB0。</p>
+</blockquote>
+<p>“调用栈”（call stack）既可以指具体实现，也可以指一种抽象概念——由“栈帧￼”（stack frame）或者叫“活动记录”（activation record）构成的栈</p>
+<h3 id=""><a href="#" class="headerlink" title=""></a></h3><h3 id="栈帧"><a href="#栈帧" class="headerlink" title="栈帧"></a>栈帧</h3><p><img src="/stack_frame.png" alt="stack_frame"></p>
+<p>​                                                     (图片来源自wikipedia)</p>
+<p>在上图中，是2个函数的调用,<code>DrawSquare</code>调用了<code>DrwaLine</code>,其中绿色和蓝色就分别代表了2个栈帧，多个栈帧就组合了我们的函数调用栈，上图中是一个递增栈，但是在ARM中一般都是递减栈，但是我们可以看到，一张栈帧结构中包含着Return Address，也就是当前活动记录执行结束后要返回的地址（展开）。</p>
+<p>那么，在我们获取到栈帧后，就可以通过返回地址来进行回溯了。</p>
+<p>如下图所示，不管是较早的帧，还是调用者的帧，还是当前帧，它们的结构是完全一样的，因为每个帧都是基于一个函数，帧伴随着函数的生命周期一起产生、发展和消亡。在这个过程中用到了上面说的寄存器，fp(ebp)帧指针，它总是指向当前帧的底部；sp(esp)栈顶指针，它总是指向当前帧的顶部。这两个寄存器用来定位当前帧中的所有空间。编译器需要根据指令集的规则小心翼翼地调整这两个寄存器的值，一旦出错，参数传递、函数返回都可能出现问题。</p>
+<p><img src="/stackframe_x86.jpg" alt="stackframe_x86"></p>
+<p>其实这里这几个寄存器会满足一定规则，比如：</p>
+<ul>
+<li>fp(ebp)指向的是当面栈帧的底部，该地址存的值是调用当前栈帧的上一个栈帧的fp(esp)的地址。</li>
+<li>lr(eip)总是在上一个栈帧（也就是调用当前栈帧的栈帧）的顶部，而栈帧之间是连续存储的，所以lr也就是当前栈帧底部的上一个地址，以此类推就可以推出所有函数的调用顺序。这里注意，栈底在高地址，栈向下增长</li>
+</ul>
+<p><strong>Pseudocode</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span>(fp) &#123;</span><br><span class="line">  lr = *(fp + <span class="number">1</span>);</span><br><span class="line">  <span class="comment">// store lr</span></span><br><span class="line">  fp = *fp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="函数的地址"><a href="#函数的地址" class="headerlink" title="函数的地址"></a>函数的地址</h3><p>在上面的过程中，我们可以拿到所有的LR的值，但是LR里保存的其实是一个cpu在执行完当前函数要返回的指令地址。我们怎么通过他拿到真正的函数入口地址呢。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">funcFirstStep</span><span class="params">()</span> &#123;</span><br><span class="line">    funcSecondStep();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">funcSecondStep</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="comment">// do nothing</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> * argv[])</span> &#123;</span><br><span class="line">    funcFirstStep();</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">HookTest`funcFirstStep:</span><br><span class="line">-&gt;  <span class="number">0x1049e1600</span> &lt;+<span class="number">0</span>&gt;:  stp    x29, x30, [sp, #<span class="number">-0x10</span>]!</span><br><span class="line">    <span class="number">0x1049e1604</span> &lt;+<span class="number">4</span>&gt;:  mov    x29, sp</span><br><span class="line">    <span class="number">0x1049e1608</span> &lt;+<span class="number">8</span>&gt;:  bl     <span class="number">0x1049e1614</span>               ; funcSecondStep at main.m:<span class="number">20</span>:<span class="number">1</span></span><br><span class="line">    <span class="number">0x1049e160c</span> &lt;+<span class="number">12</span>&gt;: ldp    x29, x30, [sp], #<span class="number">0x10</span></span><br><span class="line">    <span class="number">0x1049e1610</span> &lt;+<span class="number">16</span>&gt;: ret    </span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>这是<code>funcFirstStep</code>的汇编代码，<code>0x1049e1600</code>其实就是函数地址，但是我们只能拿到LR的地址,在执行完<code>0x1049e1608</code>这条跳转指令时，转到<code>funcSecondStep</code>的栈帧中，然后需要保存<code>0x1049e160c</code>这条地址(LR),用来保证cpu在执行完<code>funcSecondStep</code>知道继续在哪里执行。所以每个LR都有一个特点，他是距离他函数入口地址最近的一个LR,并且他的地址比函数入口地址大，大多少暂时未知，取决于当前函数要执行多少条pc寄存器的指令(也就是函数复杂度)，暂且让我们先记住这个特点。</p>
+<h3 id="获取当前线程的寄存器状态"><a href="#获取当前线程的寄存器状态" class="headerlink" title="获取当前线程的寄存器状态"></a>获取当前线程的寄存器状态</h3><p>当检测到需要获取函数调用栈时，我们需要拿到当前的寄存器信息，正好mach有提供这样的一组API</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">mach_msg_type_number_t</span> count = x86_THREAD_STATE64_COUNT;</span><br><span class="line"><span class="built_in">thread_get_state</span>(thread, x86_THREAD_STATE64, (<span class="type">thread_state_t</span>)&amp;ctx.__ss, &amp;count);</span><br></pre></td></tr></table></figure>
+
+<p>会根据传入的线程以及架构，返回对应的架构状态的结构体，其中就包括了线程寄存器状态，例如ARM64来说</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">_STRUCT_MCONTEXT64</span><br><span class="line">&#123;</span><br><span class="line">    _STRUCT_ARM_EXCEPTION_STATE64   es;</span><br><span class="line">    _STRUCT_ARM_THREAD_STATE64      ss;</span><br><span class="line">    _STRUCT_ARM_NEON_STATE64        ns;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>其中ss就是就是我们在寄存器章节中提到的结构体。在源码中，还有这么一段代码,是为了适配cpu的架构类型适配，所以在传入cpu架构类型参数以及后续返回值的时候，我们也可以写对应的宏来做处理，方便代码的健壮性，这里就不展开了</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">ifndef</span> _MCONTEXT_T</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _MCONTEXT_T</span></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> defined(__arm64__)</span></span><br><span class="line"><span class="keyword">typedef</span> _STRUCT_MCONTEXT64      *<span class="type">mcontext_t</span>;</span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _STRUCT_MCONTEXT _STRUCT_MCONTEXT64</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line"><span class="keyword">typedef</span> _STRUCT_MCONTEXT32      *<span class="type">mcontext_t</span>;</span><br><span class="line"><span class="meta">#<span class="keyword">define</span> _STRUCT_MCONTEXT        _STRUCT_MCONTEXT32</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span> <span class="comment">/* _MCONTEXT_T */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>但是其中有一个关键参数是要传入线程<code>thread</code>,这是一个<code>thread_state_t</code>类型，即kernel线程，并不是NSThread，系统并没有提供直接转换的方法，所以我们需要先做线程转换。</p>
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>这一块也是比较大的知识，本质是一个映射的过程，具体可以参见上一篇博客<br><a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2">NSThead和内核线程的转换</a></p>
+<h3 id="获取所有LR寄存器的实现"><a href="#获取所有LR寄存器的实现" class="headerlink" title="获取所有LR寄存器的实现"></a>获取所有LR寄存器的实现</h3><p>首先定义了一个数组，用来存放所有需要获取寄存器的值，自定义最大数量为50个，避免更深的栈的深度的性能问题，这个可以自己取舍。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">getThreadAllLRandFirstPc</span><span class="params">(<span class="type">thread_t</span> thread, <span class="type">uintptr_t</span>* backtraceBuffer, <span class="type">int</span> * bufferLengh)</span> &#123;</span><br><span class="line">    </span><br><span class="line">    <span class="type">int</span> i = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// get context</span></span><br><span class="line">    _STRUCT_MCONTEXT machineContext;</span><br><span class="line">    <span class="keyword">if</span>(!bs_fillThreadStateIntoMachineContext(thread, &amp;machineContext)) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// pc</span></span><br><span class="line">    <span class="type">const</span> <span class="type">uintptr_t</span> instructionAddress = bs_mach_instructionAddress(&amp;machineContext);</span><br><span class="line">    <span class="comment">// machineContext-&gt;__ss.pc;</span></span><br><span class="line">    backtraceBuffer[i] = instructionAddress;</span><br><span class="line">    ++i;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// first lr</span></span><br><span class="line">    <span class="type">uintptr_t</span> linkRegister = bs_mach_linkRegister(&amp;machineContext);</span><br><span class="line">    <span class="keyword">if</span> (linkRegister) &#123;</span><br><span class="line">        backtraceBuffer[i] = linkRegister;</span><br><span class="line">        i++;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span>(instructionAddress == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> ;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    BSStackFrameEntry frame = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">    <span class="comment">// get fp</span></span><br><span class="line">    <span class="type">const</span> <span class="type">uintptr_t</span> framePtr = bs_mach_framePointer(&amp;machineContext);</span><br><span class="line">    <span class="keyword">if</span>(framePtr == <span class="number">0</span> ||</span><br><span class="line">       <span class="comment">// read  16 byte start with fp, 8byte -&gt;lr ,8byte -&gt; last fp</span></span><br><span class="line">       bs_mach_copyMem((<span class="type">void</span> *)framePtr, &amp;frame, <span class="keyword">sizeof</span>(frame)) != KERN_SUCCESS) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// recursion</span></span><br><span class="line">    <span class="keyword">for</span>(; i &lt; <span class="number">50</span>; i++) &#123;</span><br><span class="line">        backtraceBuffer[i] = frame.return_address;</span><br><span class="line">        <span class="keyword">if</span>(backtraceBuffer[i] == <span class="number">0</span> ||</span><br><span class="line">           frame.previous == <span class="number">0</span> ||</span><br><span class="line">           bs_mach_copyMem(frame.previous, &amp;frame, <span class="keyword">sizeof</span>(frame)) != KERN_SUCCESS) &#123;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    *bufferLengh = i;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="符号化"><a href="#符号化" class="headerlink" title="符号化"></a>符号化</h3><p>就像 “把大象关进冰箱需要几步” 一样，获取 函数 对应的符号名也可以分为以下几步:</p>
+<ol>
+<li>根据 LR或者PC 找到函数属于哪个镜像文件(也就是上面取出的那些地址)</li>
+<li>找到镜像的符号表和字符串表</li>
+<li>找到LR或者PC最接近符号表的哪个地址</li>
+<li>在字符串表中找到接近的地址的函数名</li>
+</ol>
+<p>不过在这里需要注意一个内存对齐的问题，不同的操作系统对齐方式不一样，arm64指针是4字节对齐</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">pragma</span> -mark Symbolicate</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">bs_symbolicate</span><span class="params">(<span class="type">const</span> <span class="type">uintptr_t</span>* <span class="type">const</span> backtraceBuffer,</span></span><br><span class="line"><span class="params">                    Dl_info* <span class="type">const</span> symbolsBuffer,</span></span><br><span class="line"><span class="params">                    <span class="type">const</span> <span class="type">int</span> numEntries,</span></span><br><span class="line"><span class="params">                    <span class="type">const</span> <span class="type">int</span> skippedEntries)</span>&#123;</span><br><span class="line">    <span class="type">int</span> i = <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span>(!skippedEntries &amp;&amp; i &lt; numEntries) &#123;</span><br><span class="line">        <span class="comment">// 第一次是pc寄存器，不需要考虑内存对齐</span></span><br><span class="line">        bs_dladdr(backtraceBuffer[i], &amp;symbolsBuffer[i]);</span><br><span class="line">        i++;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span>(; i &lt; numEntries; i++) &#123;</span><br><span class="line">        <span class="comment">// 后续需要考虑到不同操作系统内存对齐的问题</span></span><br><span class="line">        bs_dladdr(CALL_INSTRUCTION_FROM_RETURN_ADDRESS(backtraceBuffer[i]), &amp;symbolsBuffer[i]);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> <span class="title function_">bs_dladdr</span><span class="params">(<span class="type">const</span> <span class="type">uintptr_t</span> address, Dl_info* <span class="type">const</span> info)</span> &#123;</span><br><span class="line">    info-&gt;dli_fname = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_fbase = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_sname = <span class="literal">NULL</span>;</span><br><span class="line">    info-&gt;dli_saddr = <span class="literal">NULL</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 寻找函数所在的镜像文件</span></span><br><span class="line">    <span class="type">const</span> <span class="type">uint32_t</span> idx = bs_imageIndexContainingAddress(address);</span><br><span class="line">    <span class="keyword">if</span>(idx == UINT_MAX) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 拿到模块偏移值</span></span><br><span class="line">    <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">mach_header</span>* <span class="title">header</span> =</span> _dyld_get_image_header(idx);</span><br><span class="line">    <span class="type">const</span> <span class="type">uintptr_t</span> imageVMAddrSlide = (<span class="type">uintptr_t</span>)_dyld_get_image_vmaddr_slide(idx);</span><br><span class="line">    <span class="type">const</span> <span class="type">uintptr_t</span> addressWithSlide = address - imageVMAddrSlide;</span><br><span class="line">    <span class="comment">// 拿到link_segment段的开始地址</span></span><br><span class="line">    <span class="type">const</span> <span class="type">uintptr_t</span> segmentBase = bs_segmentBaseOfImageIndex(idx) + imageVMAddrSlide;</span><br><span class="line">    <span class="keyword">if</span>(segmentBase == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 获取镜像的路径名</span></span><br><span class="line">    info-&gt;dli_fname = _dyld_get_image_name(idx);</span><br><span class="line">    <span class="comment">// 镜像的header地址</span></span><br><span class="line">    info-&gt;dli_fbase = (<span class="type">void</span>*)header;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Find symbol tables and get whichever symbol is closest to the address.</span></span><br><span class="line">    <span class="type">const</span> BS_NLIST* bestMatch = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">uintptr_t</span> bestDistance = ULONG_MAX;</span><br><span class="line">    <span class="type">uintptr_t</span> cmdPtr = bs_firstCmdAfterHeader(header);</span><br><span class="line">    <span class="keyword">if</span>(cmdPtr == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">uint32_t</span> iCmd = <span class="number">0</span>; iCmd &lt; header-&gt;ncmds; iCmd++) &#123;</span><br><span class="line">        <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">load_command</span>* <span class="title">loadCmd</span> =</span> (<span class="keyword">struct</span> load_command*)cmdPtr;</span><br><span class="line">        <span class="comment">// 找到symtab cmd段</span></span><br><span class="line">        <span class="keyword">if</span>(loadCmd-&gt;cmd == LC_SYMTAB) &#123;</span><br><span class="line">            <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">symtab_command</span>* <span class="title">symtabCmd</span> =</span> (<span class="keyword">struct</span> symtab_command*)cmdPtr;</span><br><span class="line">            <span class="comment">// 拿到symbol和string2张表，symboltable本质是一个nlist数组</span></span><br><span class="line">            <span class="type">const</span> BS_NLIST* symbolTable = (BS_NLIST*)(segmentBase + symtabCmd-&gt;symoff);</span><br><span class="line">            <span class="type">const</span> <span class="type">uintptr_t</span> stringTable = segmentBase + symtabCmd-&gt;stroff;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">for</span>(<span class="type">uint32_t</span> iSym = <span class="number">0</span>; iSym &lt; symtabCmd-&gt;nsyms; iSym++) &#123;</span><br><span class="line">                <span class="comment">// 函数的入口地址</span></span><br><span class="line">                <span class="keyword">if</span>(symbolTable[iSym].n_value != <span class="number">0</span>) &#123;</span><br><span class="line">                    <span class="comment">// 符号在内存中的地址</span></span><br><span class="line">                    <span class="type">uintptr_t</span> symbolBase = symbolTable[iSym].n_value;</span><br><span class="line">                    <span class="comment">// 用返回值地址-符号基址</span></span><br><span class="line">                    <span class="type">uintptr_t</span> currentDistance = addressWithSlide - symbolBase;</span><br><span class="line">                    <span class="comment">// 找到符号表中地址距离返回地址最近的一条</span></span><br><span class="line">                    <span class="keyword">if</span>((addressWithSlide &gt;= symbolBase) &amp;&amp;</span><br><span class="line">                       (currentDistance &lt;= bestDistance)) &#123;</span><br><span class="line">                        bestMatch = symbolTable + iSym;</span><br><span class="line">                        bestDistance = currentDistance;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span>(bestMatch != <span class="literal">NULL</span>) &#123;</span><br><span class="line">                <span class="comment">// get name from stringTabel With dysm offset</span></span><br><span class="line">                info-&gt;dli_saddr = (<span class="type">void</span>*)(bestMatch-&gt;n_value + imageVMAddrSlide);</span><br><span class="line">                info-&gt;dli_sname = (<span class="type">char</span>*)((<span class="type">intptr_t</span>)stringTable + (<span class="type">intptr_t</span>)bestMatch-&gt;n_un.n_strx);</span><br><span class="line">                <span class="keyword">if</span>(*info-&gt;dli_sname == <span class="string">&#x27;_&#x27;</span>) &#123;</span><br><span class="line">                    info-&gt;dli_sname++;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// This happens if all symbols have been stripped.</span></span><br><span class="line">                <span class="keyword">if</span>(info-&gt;dli_saddr == info-&gt;dli_fbase &amp;&amp; bestMatch-&gt;n_type == <span class="number">3</span>) &#123;</span><br><span class="line">                    info-&gt;dli_sname = <span class="literal">NULL</span>;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        cmdPtr += loadCmd-&gt;cmdsize;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h3 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h3><p>在模拟器上实验，最后的结果来说是完全符合预期的，除了有部分系统符号不能打出来。在真机上是什么表现呢？很遗憾，在真机上，很多私有API的符号都被去掉了，只能显示<code>&lt;redacted&gt;</code>，但是部分公开的API和自己的符号均能被打印。所以还是能帮助我们对问题的分析。其实符号化这部分过程其实就是对macho的一个处理，和我们fishhook中很相似。具体可以参考<a href="/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86">fishhook原理&#x2F;</a></p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/%E6%B5%85%E8%B0%88%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E6%A0%88/" data-id="cmdft9lmc0022ydwcajqbcc51" data-title="浅谈函数调用栈" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
+    <article id="post-NSThead和内核线程的转换" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/" class="article-date">
+  <time class="dt-published" datetime="2020-05-14T03:55:19.000Z" itemprop="datePublished">2020-05-14</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/">NSThead和内核线程的转换</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>在最近的一个需求中，需要把NSThread转换成内核线程，所以就对这部分了解了一下，也有了这篇文章</p>
+<h3 id="Mach-线程"><a href="#Mach-线程" class="headerlink" title="Mach 线程"></a>Mach 线程</h3><p>iOS 是基于 Apple Darwin 内核，由 kernel、XNU 和 Runtime 组成，而 XNU 是 Darwin 的内核，它是“X is not UNIX”的缩写，是一个混合内核，由 Mach 微内核和 BSD 组成。Mach 内核是轻量级的平台，只能完成操作系统最基本的职责，比如：进程和线程、虚拟内存管理、任务调度、进程通信和消息传递机制。其他的工作，例如文件操作和设备访问，都由 BSD 层实现。</p>
+<p><img src="/mach_thread.png" alt="mach_thread"></p>
+<h3 id="NSThead的层级封装"><a href="#NSThead的层级封装" class="headerlink" title="NSThead的层级封装"></a>NSThead的层级封装</h3><p>很多文章都提到了 NSThread 是 pthread 的封装，这就涉及两个问题:</p>
+<blockquote>
+<ol>
+<li>pthread 是什么</li>
+<li>NSThread 如何封装 pthread</li>
+</ol>
+</blockquote>
+<p>pthread 中的字母 p 是 POSIX 的简写，POSIX 表示 “可移植操作系统接口(Portable Operating System Interface)”。</p>
+<p>每个操作系统都有自己的线程模型，不同操作系统提供的，操作线程的 API 也不一样，这就给跨平台的线程管理带来了问题，而 POSIX 的目的就是提供抽象的 pthread 以及相关 API，这些 API 在不同操作系统中有不同的实现，但是完成的功能一致。</p>
+<p>Unix 系统提供的 <code>thread_get_state</code> 和 <code>task_threads</code> 等方法，操作的都是内核线程，每个内核线程由 <code>thread_t</code> 类型的 id 来唯一标识，pthread 的唯一标识是 <code>pthread_t</code> 类型。</p>
+<p>内核线程和 pthread 的转换(也即是 <code>thread_t</code> 和 <code>pthread_t</code> 互转)很容易，因为 pthread 诞生的目的就是为了抽象内核线程。</p>
+<p>NSThread 的 <code>start</code> 方法简化版实现如下:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>) start &#123;</span><br><span class="line">  <span class="type">pthread_attr_t</span>    attr;</span><br><span class="line">  <span class="type">pthread_t</span>        thr;</span><br><span class="line">  errno = <span class="number">0</span>;</span><br><span class="line">  pthread_attr_init(&amp;attr);</span><br><span class="line">  <span class="keyword">if</span> (pthread_create(&amp;thr, &amp;attr, nsthreadLauncher, self)) &#123;</span><br><span class="line">      <span class="comment">// Error Handling</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NSThread-转内核-thread"><a href="#NSThread-转内核-thread" class="headerlink" title="NSThread 转内核 thread"></a>NSThread 转内核 thread</h3><p>由于系统没有提供相应的转换方法，而且 NSThread 没有保留线程的 <code>pthread_t</code>，所以常规手段无法满足需求。</p>
+<p>上文提到了利用 <code>pthread_create</code> 方法创建线程，它的回调函数 <code>nsthreadLauncher</code> 实现如下:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="type">void</span> *nsthreadLauncher(<span class="type">void</span>* thread)  </span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">NSThread</span> *t = (<span class="built_in">NSThread</span>*)thread;</span><br><span class="line">    [nc postNotificationName: <span class="built_in">NSThreadDidStartNotification</span> object:t userInfo: <span class="literal">nil</span>];</span><br><span class="line">    [t _setName: [t name]];</span><br><span class="line">    [t main];</span><br><span class="line">    [<span class="built_in">NSThread</span> exit];</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回顾问题发现，我们需要的是一个联系 NSThread 对象和内核 thread 的纽带，也就是说要找到 NSThread 对象的某个唯一值，而且内核 thread 也具有这个唯一值。</p>
+<p>观察一下 NSThread，它的唯一值只有对象地址，对象序列号(Sequence Number) 和线程名称:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&lt;<span class="built_in">NSThread</span>: <span class="number">0x144d095e0</span>&gt;&#123;number = <span class="number">1</span>, name = main&#125;  </span><br></pre></td></tr></table></figure>
+
+<p>地址分配在堆上，没有使用意义，序列号的计算没有看懂，因此只剩下 name。幸运的是 pthread 也提供了一个方法 <code>pthread_getname_np</code> 来获取线程的名字，两者是一致的，感兴趣的读者可以自行阅读 <code>setName</code> 方法的实现，它调用的就是 pthread 提供的接口。</p>
+<p>这里的 <strong>np</strong> 表示 not POSIX，也就是说它并不能跨平台使用。</p>
+<p>于是解决方案就很简单了，对于 NSThread 参数，把它的名字改为某个随机数(我选择了时间戳)，然后遍历 pthread 并检查有没有匹配的名字。查找完成后把参数的名字恢复即可。</p>
+<h3 id="主线程转内核-thread"><a href="#主线程转内核-thread" class="headerlink" title="主线程转内核 thread"></a>主线程转内核 thread</h3><p>本来以为问题已经圆满解决，不料还有一个坑，主线程设置 name 后无法用 <code>pthread_getname_np</code> 读取到。</p>
+<p>好在我们还可以迂回解决问题: 事先获得主线程的 <code>thread_t</code>，然后进行比对。</p>
+<p>上述方案要求我们在主线程中执行代码从而获得 <code>thread_t</code>，显然最好的方案是在 load 方法里:</p>
+<figure class="highlight objc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> mach_port_t main_thread_id;  </span><br><span class="line">+ (<span class="type">void</span>)load &#123;</span><br><span class="line">    main_thread_id = mach_thread_self();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/NSThead%E5%92%8C%E5%86%85%E6%A0%B8%E7%BA%BF%E7%A8%8B%E7%9A%84%E8%BD%AC%E6%8D%A2/" data-id="cmdft9llc0008ydwc0kctf6ls" data-title="NSThead和内核线程的转换" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
+    <article id="post-fishhook原理" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/" class="article-date">
+  <time class="dt-published" datetime="2020-05-11T07:57:06.000Z" itemprop="datePublished">2020-05-11</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/">fishhook原理</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h3 id="fishhook简介"><a href="#fishhook简介" class="headerlink" title="fishhook简介"></a>fishhook简介</h3><p>fishhook 是一个由 facebook 开源的第三方框架，其主要作用就是<strong>动态修改 C 语言函数实现</strong>。</p>
+<p>这个框架的代码其实非常的简单，只包含两个文件：<code>fishhook.c</code> 以及 <code>fishhook.h</code>；两个文件所有的代码加起来也不超过 300 行。</p>
+<p> 不过它的实现原理是非常有意思并且精妙的，不过在这之前，先让我们简单尝试一下</p>
+<h3 id="Fishhook-简单使用"><a href="#Fishhook-简单使用" class="headerlink" title="Fishhook 简单使用"></a>Fishhook 简单使用</h3><p>例如，我hook一个系统的NSLog方法，大概的代码就是这样</p>
+<blockquote>
+<p>1.写一个自己的func来做hook的事，例如文中的MYLog</p>
+<p>2.定义一个函数指针用来保存被hook的函数，方便后续调用</p>
+<p>3.创建一个<code>rebinding</code>结构体，给三个参数赋值，然后调用<code>rebind_symbols</code>，一个hook就已经完成</p>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">- (<span class="type">void</span>)hook</span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebinding</span> <span class="title">logRebind</span>;</span></span><br><span class="line">    logRebind.name = <span class="string">&quot;NSLog&quot;</span>;</span><br><span class="line">    logRebind.replacement = MyLog;</span><br><span class="line">    logRebind.replaced = (<span class="type">void</span> *)&amp;originalNSLog;</span><br><span class="line">    </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebinding</span> <span class="title">rebs</span>[] =</span> &#123;logRebind&#125;;    </span><br><span class="line">    rebind_symbols(rebs, <span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="title function_">void</span> <span class="params">(*originalNSLog)</span><span class="params">(NSString *format, ...)</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">MyLog</span><span class="params">(NSString *format, ...)</span>&#123;</span><br><span class="line">    <span class="comment">// do sth you  want</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// orignal func</span></span><br><span class="line">    originalNSLog(format);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>相信有很多人和我一样有一些不解，OC的runtime是基于OC动态运行时的本质做了交换，但是NSLog是一个C语言函数，是静态的。这是如何做到的呢？这些可以在fishhook的源码中可以找到，不过在这之前，我们先补充一点基础 知识</p>
+<h3 id="前瞻理论"><a href="#前瞻理论" class="headerlink" title="前瞻理论"></a>前瞻理论</h3><p>我们上面示例代码中，NSLog是一个属于Foundation的库的函数，在编译过程中，其实他并不在我们文件中。对于我们应用程序来说，本质是一个二进制执行文件，有个更专业的词，叫<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/Mach-O">MachO</a>,当<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/Mach-O">MachO</a>被内核加载到内存中开始运行时，有一个叫<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Dynamic_linker">DYLD</a>做了一系列的事情，其中一步叫做加载共享缓存区(shareCache),DYLD做了一系列的加载链接。那么苹果如果在编译时保证这种并不确定的静态呢，苹果为了能在 Mach-O 文件中访问外部函数，采用了一个技术，叫做<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Position-independent_code">PIC</a>（位置代码独立）技术。</p>
+<p>当你的应用程序想要调用 Mach-O 文件外部的函数的时候，或者说如果 Mach-O 内部需要调用系统的库函数时，Mach-O 文件会：</p>
+<blockquote>
+<ol>
+<li>先在 Mach-O 文件的 _DATA 段中建立一个指针,这个指针变量指向外部函数。</li>
+<li>DYLD 会动态的进行绑定！将 Mach-O 中的 _DATA 段中的指针，指向外部函数。</li>
+</ol>
+</blockquote>
+<p>fishhook本质就是找这个符号名，已经把这个符号名的符号给替换掉的过程，下面可以通过2张图简单了解一下</p>
+<h3 id="Fishhook-原理简单图解"><a href="#Fishhook-原理简单图解" class="headerlink" title="Fishhook 原理简单图解"></a>Fishhook 原理简单图解</h3><p>1.寻址,本质就是对MachO文件中的几个表的对应关系的查找，感兴趣的可以深入的了解下MachO,后面的源码也会简单的说明</p>
+<p><img src="https://camo.githubusercontent.com/18243516844d12b1bd158ce3687635d6e48d2e2e/687474703a2f2f692e696d6775722e636f6d2f4856587148437a2e706e67" alt="Visual explanation"></p>
+<p>2.替换</p>
+<p><img src="/simpleTheory.png" alt="simpleTheory"></p>
+<h3 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h3><p>首先入口函数<code>rebind_symbols</code>,接受一个<code>rebinding</code>结构体的数组，以及他的数组长度。可以一次hook多个函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//注册重新绑定符号的回调时机</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">rebind_symbols</span><span class="params">(<span class="keyword">struct</span> rebinding rebindings[], <span class="type">size_t</span> rebindings_nel)</span> &#123;</span><br><span class="line">    <span class="comment">//将需要hook的结构体链接成链表结构(之所以使用链表是因为在C语言中，处理这种预先不知道可能有多少个的集合来讲，链表是比较好的选择)</span></span><br><span class="line">  <span class="type">int</span> retval = prepend_rebindings(&amp;_rebindings_head, rebindings, rebindings_nel);</span><br><span class="line">    <span class="comment">//此处的异常主要用来处理malloc开辟空间失败</span></span><br><span class="line">  <span class="keyword">if</span> (retval &lt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> retval;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// If this was the first call, register callback for image additions (which is also invoked for</span></span><br><span class="line">  <span class="comment">// existing images, otherwise, just run on existing images</span></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     如果是第一次调用重新绑定符号的方法，就通过注册添加image(target module)的方法回调来重新绑定符号(这个方法在任何地方注册都会执行加载image的回调);</span></span><br><span class="line"><span class="comment">     如果不是第一次调用重新绑定符号的方法，就通过遍历当前已经加载的image来循环绑定符号(如果在此操作执行之后，又重新加载了image，可以通过_dyld_register_func_for_add_image来监听到);</span></span><br><span class="line"><span class="comment">     </span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">  <span class="keyword">if</span> (!_rebindings_head-&gt;next) &#123;</span><br><span class="line">    _dyld_register_func_for_add_image(_rebind_symbols_for_image);</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="type">uint32_t</span> c = _dyld_image_count();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">uint32_t</span> i = <span class="number">0</span>; i &lt; c; i++) &#123;</span><br><span class="line">      _rebind_symbols_for_image(_dyld_get_image_header(i), _dyld_get_image_vmaddr_slide(i));</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//在方法内部调用rebind_symbols_for_image实现</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> _rebind_symbols_for_image(<span class="type">const</span> <span class="keyword">struct</span> mach_header *header,</span><br><span class="line">                                      <span class="type">intptr_t</span> slide) &#123;</span><br><span class="line">    rebind_symbols_for_image(_rebindings_head, header, slide);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>获取链接表，符号表，动态符号表，重定向(<a href="%5Bhttps://zh.wikipedia.org/wiki/%E4%BD%8D%E5%9D%80%E7%A9%BA%E9%96%93%E9%85%8D%E7%BD%AE%E9%9A%A8%E6%A9%9F%E8%BC%89%E5%85%A5%5D(https://zh.wikipedia.org/wiki/%E4%BD%8D%E5%9D%80%E7%A9%BA%E9%96%93%E9%85%8D%E7%BD%AE%E9%9A%A8%E6%A9%9F%E8%BC%89%E5%85%A5)">ASLR</a>)表在内存中的地址，获取__la_symbol_ptr以及__ln_symbol_ptr对应的section，方便找到后续的对应的两个表</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">rebind_symbols_for_image</span><span class="params">(<span class="keyword">struct</span> rebindings_entry *rebindings,</span></span><br><span class="line"><span class="params">                                     <span class="type">const</span> <span class="keyword">struct</span> mach_header *header,</span></span><br><span class="line"><span class="params">                                     <span class="type">intptr_t</span> slide)</span> &#123;</span><br><span class="line">  Dl_info info;</span><br><span class="line">  <span class="keyword">if</span> (dladdr(header, &amp;info) == <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="type">segment_command_t</span> *cur_seg_cmd;</span><br><span class="line">  <span class="type">segment_command_t</span> *linkedit_segment = <span class="literal">NULL</span>;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">symtab_command</span>* <span class="title">symtab_cmd</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">dysymtab_command</span>* <span class="title">dysymtab_cmd</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">    <span class="comment">//第一次遍历load Commands主要是为了找到链接表linkedit_segment,符号表(symtab_cmd),动态符号表(dysymtab_cmd)对应的load command</span></span><br><span class="line">  <span class="type">uintptr_t</span> cur = (<span class="type">uintptr_t</span>)header + <span class="keyword">sizeof</span>(<span class="type">mach_header_t</span>);<span class="comment">//使用uintptr_t类型主要是为了方便按照字节为单位移动指针的位置</span></span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (<span class="type">segment_command_t</span> *)cur;</span><br><span class="line">      </span><br><span class="line">    <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;</span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_LINKEDIT) == <span class="number">0</span>) &#123;</span><br><span class="line">        linkedit_segment = cur_seg_cmd;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SYMTAB) &#123;</span><br><span class="line">      symtab_cmd = (<span class="keyword">struct</span> symtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_DYSYMTAB) &#123;</span><br><span class="line">      dysymtab_cmd = (<span class="keyword">struct</span> dysymtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="keyword">if</span> (!symtab_cmd || !dysymtab_cmd || !linkedit_segment ||</span><br><span class="line">      !dysymtab_cmd-&gt;nindirectsyms) &#123;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line">  <span class="comment">// 通过使用__LINKEDIT的起始地址找到symbol table/string table在内存中的地址</span></span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">  <span class="type">uintptr_t</span> linkedit_base = (<span class="type">uintptr_t</span>)slide + linkedit_segment-&gt;vmaddr - linkedit_segment-&gt;fileoff;</span><br><span class="line">  <span class="type">nlist_t</span> *symtab = (<span class="type">nlist_t</span> *)(linkedit_base + symtab_cmd-&gt;symoff);</span><br><span class="line">  <span class="type">char</span> *strtab = (<span class="type">char</span> *)(linkedit_base + symtab_cmd-&gt;stroff); <span class="comment">//使用char *类型是因为字符在内存中按照char为单位进行存储</span></span><br><span class="line"> </span><br><span class="line">  <span class="comment">// 获取重定向表在内存中的位置</span></span><br><span class="line">  <span class="type">uint32_t</span> *indirect_symtab = (<span class="type">uint32_t</span> *)(linkedit_base + dysymtab_cmd-&gt;indirectsymoff); <span class="comment">//使用uint32_t *是因为重定向符号表中数据按照4字节为单位进行存储</span></span><br><span class="line"> </span><br><span class="line">  cur = (<span class="type">uintptr_t</span>)header + <span class="keyword">sizeof</span>(<span class="type">mach_header_t</span>);</span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (<span class="type">segment_command_t</span> *)cur;</span><br><span class="line">    <span class="keyword">if</span> (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;</span><br><span class="line">       <span class="comment">//找到DATA和DATA_CONST segment，并跳过</span></span><br><span class="line">      <span class="keyword">if</span> (<span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_DATA) != <span class="number">0</span> &amp;&amp;</span><br><span class="line">          <span class="built_in">strcmp</span>(cur_seg_cmd-&gt;segname, SEG_DATA_CONST) != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">      &#125;</span><br><span class="line"> </span><br><span class="line">        <span class="comment">////找到__nl_symbol_ptr和__la_symbol_ptr这两个section</span></span><br><span class="line">      <span class="keyword">for</span> (uint j = <span class="number">0</span>; j &lt; cur_seg_cmd-&gt;nsects; j++) &#123;</span><br><span class="line">        <span class="type">section_t</span> *sect =</span><br><span class="line">          (<span class="type">section_t</span> *)(cur + <span class="keyword">sizeof</span>(<span class="type">segment_command_t</span>)) + j;</span><br><span class="line">        <span class="keyword">if</span> ((sect-&gt;flags &amp; SECTION_TYPE) == S_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">            <span class="comment">//遍历懒加载符号表中的符号，与_rebindings_head进行比较，对匹配的符号进行重新绑定</span></span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> ((sect-&gt;flags &amp; SECTION_TYPE) == S_NON_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">            <span class="comment">//遍历非懒加载符号表中的符号，与_rebindings_head进行比较，对匹配的符号进行重新绑定</span></span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>查找并替换_rebindings_head中需要替换的符号</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">perform_rebinding_with_section</span><span class="params">(<span class="keyword">struct</span> rebindings_entry *rebindings,</span></span><br><span class="line"><span class="params">                                           <span class="type">section_t</span> *section,</span></span><br><span class="line"><span class="params">                                           <span class="type">intptr_t</span> slide,</span></span><br><span class="line"><span class="params">                                           <span class="type">nlist_t</span> *symtab,</span></span><br><span class="line"><span class="params">                                           <span class="type">char</span> *strtab,</span></span><br><span class="line"><span class="params">                                           <span class="type">uint32_t</span> *indirect_symtab)</span> &#123;</span><br><span class="line">    <span class="comment">//section在indirect table中的索引从reserved1处开始</span></span><br><span class="line">  <span class="type">uint32_t</span> *indirect_symbol_indices = indirect_symtab + section-&gt;reserved1;</span><br><span class="line">    <span class="comment">// //indirect Symbols中包含了各个section中符号在Symbol Table的index，这里是直接定位到对应__DATA,__la_symbol_ptr所在的index数组</span></span><br><span class="line">  <span class="type">void</span> **indirect_symbol_bindings = (<span class="type">void</span> **)((<span class="type">uintptr_t</span>)slide + section-&gt;addr);</span><br><span class="line">  <span class="keyword">for</span> (uint i = <span class="number">0</span>; i &lt; section-&gt;size / <span class="keyword">sizeof</span>(<span class="type">void</span> *); i++) &#123;</span><br><span class="line">      <span class="comment">//获取indirext table中对应索引处的值，该值表示在symbole table中的索引</span></span><br><span class="line">    <span class="type">uint32_t</span> symtab_index = indirect_symbol_indices[i];</span><br><span class="line">      <span class="comment">//如果该索引表示的符号是未绑定前的符号或者本地符号，则不进行任何操作</span></span><br><span class="line">    <span class="keyword">if</span> (symtab_index == INDIRECT_SYMBOL_ABS || symtab_index == INDIRECT_SYMBOL_LOCAL ||</span><br><span class="line">        symtab_index == (INDIRECT_SYMBOL_LOCAL   | INDIRECT_SYMBOL_ABS)) &#123;</span><br><span class="line">      <span class="keyword">continue</span>;</span><br><span class="line">    &#125;</span><br><span class="line">      <span class="comment">//获取在string table中偏移</span></span><br><span class="line">    <span class="type">uint32_t</span> strtab_offset = symtab[symtab_index].n_un.n_strx;</span><br><span class="line">      <span class="comment">//获取在string table中的地址</span></span><br><span class="line">    <span class="type">char</span> *symbol_name = strtab + strtab_offset;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">rebindings_entry</span> *<span class="title">cur</span> =</span> rebindings;</span><br><span class="line">      <span class="comment">//遍历找到需要重新绑定的符号,进行重新绑定</span></span><br><span class="line">    <span class="keyword">while</span> (cur) &#123;</span><br><span class="line">      <span class="keyword">for</span> (uint j = <span class="number">0</span>; j &lt; cur-&gt;rebindings_nel; j++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">strlen</span>(symbol_name) &gt; <span class="number">1</span> &amp;&amp;</span><br><span class="line">            <span class="built_in">strcmp</span>(&amp;symbol_name[<span class="number">1</span>], cur-&gt;rebindings[j].name) == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="comment">//防止重复绑定</span></span><br><span class="line">          <span class="keyword">if</span> (cur-&gt;rebindings[j].replaced != <span class="literal">NULL</span> &amp;&amp;</span><br><span class="line">              indirect_symbol_bindings[i] != cur-&gt;rebindings[j].replacement) &#123;</span><br><span class="line">              <span class="comment">//如果符号对应的实现不是自定义实现，说明符号没有还重新绑定，将符号对应的真实实现存入cur-&gt;rebindings[j].replaced对应位置</span></span><br><span class="line">            *(cur-&gt;rebindings[j].replaced) = indirect_symbol_bindings[i];</span><br><span class="line">          &#125;</span><br><span class="line">            <span class="comment">//将自定义实现，存入符号对应的位置</span></span><br><span class="line">          indirect_symbol_bindings[i] = cur-&gt;rebindings[j].replacement;</span><br><span class="line">            <span class="comment">// 跳出，避免多次绑定</span></span><br><span class="line">          <span class="keyword">goto</span> symbol_loop;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      cur = cur-&gt;next;</span><br><span class="line">    &#125;</span><br><span class="line">  symbol_loop:;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="是否能hook在项目或者静态库中的定义的C函数"><a href="#是否能hook在项目或者静态库中的定义的C函数" class="headerlink" title="是否能hook在项目或者静态库中的定义的C函数"></a>是否能hook在项目或者静态库中的定义的C函数</h3><p>答案是不能！！！因为无论在项目中还是静态库中的函数，在编译的时候它们的地址就已经确定(Mach-O基地址+偏移)，它们不会存在于<code>__la_symbol_ptr</code>表中，自然也就无法更改。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/fishhook%E5%8E%9F%E7%90%86/" data-id="cmdft9lll000kydwc0y5de5bd" data-title="fishhook原理" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
+    <article id="post-RSA原理" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/" class="article-date">
+  <time class="dt-published" datetime="2020-04-24T07:19:36.000Z" itemprop="datePublished">2020-04-24</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/">RSA原理</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h3 id="历史"><a href="#历史" class="headerlink" title="历史"></a>历史</h3><p><em>1976年之前用的用的都是对称加密</em></p>
+<blockquote>
+<p>（1）甲方选择某一种加密规则，对信息进行加密；</p>
+<p>（2）乙方使用同一种规则，对信息进行解密。</p>
+</blockquote>
+<p><em>1976年，两位美国计算机学家Whitfield Diffie 和 Martin Hellman，提出了一种崭新构思，可以在不直接传递密钥的情况下，完成解密。这被称为<a target="_blank" rel="noopener" href="http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange">“Diffie-Hellman密钥交换算法”</a>。这个算法启发了其他科学家。人们认识到，加密和解密可以使用不同的规则，只要这两种规则之间存在某种对应关系即可，这样就避免了直接传递密钥</em></p>
+<p><em>如果公钥加密的信息只有私钥解得开，那么只要私钥不泄漏，通信就是安全的。</em></p>
+<blockquote>
+<p>（1）乙方生成两把密钥（公钥和私钥）。公钥是公开的，任何人都可以获得，私钥则是保密的。</p>
+<p>（2）甲方获取乙方的公钥，然后用它对信息加密。</p>
+<p>（3）乙方得到加密后的信息，用私钥解密。</p>
+</blockquote>
+<p>1977年，三位数学家Rivest、Shamir 和 Adleman 设计了一种算法，可以实现非对称加密。这种算法用他们三个人的名字命名，叫做<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/zh-cn/RSA%E5%8A%A0%E5%AF%86%E7%AE%97%E6%B3%95">RSA算法</a>。从那时直到现在，RSA算法一直是最广为使用的”非对称加密算法”。毫不夸张地说，只要有计算机网络的地方，就有RSA算法。</p>
+<p>这种算法非常<a target="_blank" rel="noopener" href="http://en.wikipedia.org/wiki/RSA_Factoring_Challenge">可靠</a>，密钥越长，它就越难破解。根据已经披露的文献，目前被破解的最长RSA密钥是768个二进制位。也就是说，长度超过768位的密钥，还无法破解（至少没人公开宣布）。因此可以认为，1024位的RSA密钥基本安全，2048位的密钥极其安全。(归根结底是因为破解RSA需要求)</p>
+<p>下面，我就进入正题，解释RSA算法的原理。文章共分成两部分，今天是第一部分，介绍要用到的四个数学概念。你可以看到，RSA算法并不难，只需要一点<a target="_blank" rel="noopener" href="http://jeremykun.com/2011/07/30/number-theory-a-primer/">数论知识</a>就可以理解。</p>
+<h3 id="互质关系"><a href="#互质关系" class="headerlink" title="互质关系"></a>互质关系</h3><p><em>质数</em>是指在大于1的自然数中，除了1和它本身以外不再有其他因数的自然数。</p>
+<p>*如果两个正整数，除了1以外，没有其他公因子，我们就称这两个数是<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/zh-cn/%E4%BA%92%E7%B4%A0">互质关系</a>（coprime）。比如，15和32没有公因子，所以它们是互质关系。这说明，不是质数也可以构成互质关系。</p>
+<p>关于互质关系，不难得到以下结论：</p>
+<blockquote>
+<ol>
+<li><p>任意两个质数构成互质关系，比如13和61。</p>
+</li>
+<li><p>一个数是质数，另一个数只要不是前者的倍数，两者就构成互质关系，比如3和10。</p>
+</li>
+<li><p>如果两个数之中，较大的那个数是质数，则两者构成互质关系，比如97和57。</p>
+</li>
+<li><p>1和任意一个自然数是都是互质关系，比如1和99。</p>
+</li>
+<li><p>p是大于1的整数，则p和p-1构成互质关系，比如57和56。</p>
+</li>
+<li><p>p是大于1的奇数，则p和p-2构成互质关系，比如17和15。</p>
+</li>
+</ol>
+</blockquote>
+<h3 id="欧拉函数"><a href="#欧拉函数" class="headerlink" title="欧拉函数"></a>欧拉函数</h3><blockquote>
+<p>任意给定正整数n，请问在小于等于n的正整数之中，有多少个与n构成互质关系？（比如，在1到8之中，有多少个数与8构成互质关系？）</p>
+</blockquote>
+<p>计算这个值的方法就叫<em>欧拉函数</em>，以<u><em>φ(n)</em></u>表示，在1到8之中，与8形成互质关系的是1、3、5、7，所以 φ(n) &#x3D; 4。φ(n) 的计算方法并不复杂，但是为了得到最后那个公式，需要一步步讨论。</p>
+<p>第一种情况</p>
+<p>如果n&#x3D;1，则 φ(1) &#x3D; 1 。因为1与任何数（包括自身）都构成互质关系。</p>
+<p>第二种情况</p>
+<p>如果n是质数，则 φ(n)&#x3D;n-1 。因为质数与小于它的每一个数，都构成互质关系。比如5与1、2、3、4都构成互质关系。</p>
+<p>第三种情况</p>
+<p>如果n是质数的某一个次方，即 n &#x3D; p^k (p为质数，k为大于等于1的整数)，则</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0573f4a25a.png" alt="2015-08-04&#x2F;55c0573f4a25a"></p>
+<p>比如 φ(8) &#x3D; φ(2^3) &#x3D;2^3 - 2^2 &#x3D; 8 -4 &#x3D; 4。</p>
+<p>这是因为只有当一个数不包含质数p，才可能与n互质。而包含质数p的数一共有p^(k-1)个，即1×p、2×p、3×p、…、p^(k-1)×p，把它们去除，剩下的就是与n互质的数。</p>
+<p>上面的式子还可以写成下面的形式：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0578076585.png" alt="2015-08-04&#x2F;55c0578076585"></p>
+<p>可以看出，上面的第二种情况是 k&#x3D;1 时的特例。</p>
+<p>第四种情况</p>
+<p>如果n可以分解成两个互质的整数之积，</p>
+<blockquote>
+<p>n &#x3D; p1 × p2</p>
+</blockquote>
+<p>则</p>
+<blockquote>
+<p>φ(n) &#x3D; φ(p1p2) &#x3D; φ(p1)φ(p2)</p>
+</blockquote>
+<p>即积的欧拉函数等于各个因子的欧拉函数之积。比如，φ(56)&#x3D;φ(8×7)&#x3D;φ(8)×φ(7)&#x3D;4×6&#x3D;24。</p>
+<p>这一条的证明要用到<a target="_blank" rel="noopener" href="http://en.wikipedia.org/wiki/Chinese_remainder_theorem">“中国剩余定理”</a>，这里就不展开了，只简单说一下思路：如果a与p1互质(a&lt;p1)，b与p2互质(b&lt;p2)，c与p1p2互质(c&lt;p1p2)，则c与数对 (a,b) 是一一对应关系。由于a的值有φ(p1)种可能，b的值有φ(p2)种可能，则数对 (a,b) 有φ(p1)φ(p2)种可能，而c的值有φ(p1p2)种可能，所以φ(p1p2)就等于φ(p1)φ(p2)。</p>
+<p>第五种情况</p>
+<p>因为任意一个大于1的正整数，都可以写成一系列质数的积。<br><img src="https://box.kancloud.cn/2015-08-04_55c057f99f735.png" alt="2015-08-04&#x2F;55c057f99f735"></p>
+<p>根据第4条的结论，得到<br><img src="https://box.kancloud.cn/2015-08-04_55c05835ca6e2.png" alt="2015-08-04&#x2F;55c05835ca6e2"></p>
+<p>再根据第3条的结论，得到</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05871f2594.png" alt="2015-08-04&#x2F;55c05871f2594"></p>
+<p>也就等于</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c058b16129e.png" alt="2015-08-04&#x2F;55c058b16129e"></p>
+<p>这就是欧拉函数的通用计算公式。比如，1323的欧拉函数，计算过程如下：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059446c936.png" alt="2015-08-04&#x2F;55c059446c936"></p>
+<h3 id="欧拉定理"><a href="#欧拉定理" class="headerlink" title="欧拉定理"></a>欧拉定理</h3><p>欧拉函数的用处，在于[欧拉定理]。”欧拉定理”指的是：</p>
+<blockquote>
+<p>如果两个正整数a和n互质，则n的欧拉函数 φ(n) 可以让下面的等式成立：</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059520a3e8.png" alt="2015-08-04&#x2F;55c059520a3e8"></p>
+</blockquote>
+<p>也就是说，a的φ(n)次方被n除的余数为1。或者说，a的φ(n)次方减去1，可以被n整除。比如，3和7互质，而7的欧拉函数φ(7)等于6，所以3的6次方（729）减去1，可以被7整除（728&#x2F;7&#x3D;104）。</p>
+<p>欧拉定理的证明比较复杂，这里就省略了。我们只要记住它的结论就行了。</p>
+<p>欧拉定理可以大大简化某些运算。比如，7和10互质，根据欧拉定理，</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05962e83e9.png" alt="2015-08-04&#x2F;55c05962e83e9"></p>
+<p>已知 φ(10) 等于4，所以马上得到7的4倍数次方的个位数肯定是1。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0596cb6dd4.png" alt="2015-08-04&#x2F;55c0596cb6dd4"></p>
+<p>因此，7的任意次方的个位数（例如7的222次方），心算就可以算出来。</p>
+<p>欧拉定理有一个特殊情况。</p>
+<blockquote>
+<p>假设正整数a与质数p互质，因为质数p的φ(p)等于p-1，则欧拉定理可以写成</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c0597866ff0.png" alt="2015-08-04&#x2F;55c0597866ff0"></p>
+</blockquote>
+<p>这就是著名的<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/wiki/%E8%B4%B9%E9%A9%AC%E5%B0%8F%E5%AE%9A%E7%90%86">费马小定理</a>。它是欧拉定理的特例。</p>
+<p>欧拉定理是RSA算法的核心。理解了这个定理，就可以理解RSA。</p>
+<h3 id="模反元素"><a href="#模反元素" class="headerlink" title="模反元素"></a>模反元素</h3><blockquote>
+<p>如果两个正整数a和n互质，那么一定可以找到整数b，使得 ab-1 被n整除，或者说ab被n除的余数是1。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059871365d.png" alt="2015-08-04&#x2F;55c059871365d"></p>
+<p>这时，b就叫做a的<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/wiki/%E6%A8%A1%E5%8F%8D%E5%85%83%E7%B4%A0">“模反元素”</a>。</p>
+</blockquote>
+<p>比如，3和11互质，那么3的模反元素就是4，因为 (3 × 4)-1 可以被11整除。显然，模反元素不止一个， 4加减11的整数倍都是3的模反元素 {…,-18,-7,4,15,26,…}，即如果b是a的模反元素，则 b+kn 都是a的模反元素。</p>
+<p>欧拉定理可以用来证明模反元素必然存在。</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c059984b9aa.png" alt="2015-08-04&#x2F;55c059984b9aa"></p>
+<p>可以看到，a的 φ(n)-1 次方，就是a的模反元素。</p>
+<h3 id="密钥生成的步骤"><a href="#密钥生成的步骤" class="headerlink" title="密钥生成的步骤"></a>密钥生成的步骤</h3><p>前面我介绍了一些数论知识。<br>有了这些知识，我们就可以看懂RSA算法。这是目前地球上最重要的加密算法。</p>
+<p>我们通过一个例子，来理解RSA算法。假设<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/wiki/%E7%88%B1%E4%B8%BD%E4%B8%9D%E4%B8%8E%E9%B2%8D%E4%BC%AF">爱丽丝</a>要与鲍勃进行加密通信，她该怎么生成公钥和私钥呢？</p>
+<p><img src="https://box.kancloud.cn/2015-08-04_55c05a8911a90.png" alt="img"></p>
+<p>第一步，随机选择两个不相等的质数p和q。</p>
+<p>爱丽丝选择了61和53。（实际应用中，这两个质数越大，就越难破解。）</p>
+<p>第二步，计算p和q的乘积n。</p>
+<p>爱丽丝就把61和53相乘。</p>
+<blockquote>
+<p>n &#x3D; 61×53 &#x3D; 3233</p>
+</blockquote>
+<p>n的长度就是密钥长度。3233写成二进制是110010100001，一共有12位，所以这个密钥就是12位。实际应用中，RSA密钥一般是1024位，重要场合则为2048位。</p>
+<p>第三步，计算n的欧拉函数φ(n)。</p>
+<p>根据公式：</p>
+<blockquote>
+<p>φ(n) &#x3D; (p-1)(q-1)</p>
+</blockquote>
+<p>爱丽丝算出φ(3233)等于60×52，即3120。</p>
+<p>第四步，随机选择一个整数e，条件是1</p>
+<p>爱丽丝就在1到3120之间，随机选择了17。（实际应用中，常常选择65537。）</p>
+<p>第五步，计算e对于φ(n)的模反元素d。</p>
+<p>所谓<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/wiki/%E6%A8%A1%E5%8F%8D%E5%85%83%E7%B4%A0">“模反元素”</a>就是指有一个整数d，可以使得ed被φ(n)除的余数为1。</p>
+<blockquote>
+<p>ed ≡ 1 (mod φ(n))</p>
+</blockquote>
+<p>这个式子等价于</p>
+<blockquote>
+<p>ed - 1 &#x3D; kφ(n)</p>
+</blockquote>
+<p>于是，找到模反元素d，实质上就是对下面这个二元一次方程求解。</p>
+<blockquote>
+<p>ex + φ(n)y &#x3D; 1</p>
+</blockquote>
+<p>已知 e&#x3D;17, φ(n)&#x3D;3120，</p>
+<blockquote>
+<p>17x + 3120y &#x3D; 1</p>
+</blockquote>
+<p>这个方程可以用<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/wiki/%E6%89%A9%E5%B1%95%E6%AC%A7%E5%87%A0%E9%87%8C%E5%BE%97%E7%AE%97%E6%B3%95">“扩展欧几里得算法”</a>求解，此处省略具体过程。总之，爱丽丝算出一组整数解为 (x,y)&#x3D;(2753,-15)，即 d&#x3D;2753。</p>
+<p>至此所有计算完成。</p>
+<p>第六步，将n和e封装成公钥，n和d封装成私钥。</p>
+<p>在爱丽丝的例子中，n&#x3D;3233，e&#x3D;17，d&#x3D;2753，所以公钥就是 (3233,17)，私钥就是（3233, 2753）。</p>
+<p>实际应用中，公钥和私钥的数据都采用<a target="_blank" rel="noopener" href="http://zh.wikipedia.org/zh-cn/ASN.1">ASN.1</a>格式表达（<a target="_blank" rel="noopener" href="http://hi.baidu.com/mathack/item/d0ad4cc1514a3663f7c95da2">实例</a>）。</p>
+<h3 id="RSA的可靠性以及破解"><a href="#RSA的可靠性以及破解" class="headerlink" title="RSA的可靠性以及破解"></a>RSA的可靠性以及破解</h3><p>回顾上面的密钥生成步骤，一共出现六个数字：</p>
+<blockquote>
+<p>p<br>　　q<br>　　n<br>　　φ(n)<br>　　e<br>　　d</p>
+</blockquote>
+<p>这六个数字之中，公钥用到了两个（n和e），其余四个数字都是不公开的。其中最关键的是d，因为n和d组成了私钥，一旦d泄漏，就等于私钥泄漏。</p>
+<p>那么，有无可能在已知n和e的情况下，推导出d？</p>
+<blockquote>
+<p>（1）ed≡1 (mod φ(n))。只有知道e和φ(n)，才能算出d。</p>
+<p>（2）φ(n)&#x3D;(p-1)(q-1)。只有知道p和q，才能算出φ(n)。</p>
+<p>（3）n&#x3D;pq。只有将n因数分解，才能算出p和q。</p>
+</blockquote>
+<p>结论：如果n可以被因数分解，d就可以算出，也就意味着私钥被破解。</p>
+<p>可是，大整数的因数分解，是一件非常困难的事情。目前，除了暴力破解，还没有发现别的有效方法。维基百科这样写道：</p>
+<blockquote>
+<p>“对极大整数做因数分解的难度决定了RSA算法的可靠性。换言之，对一极大整数做因数分解愈困难，RSA算法愈可靠。</p>
+<p>假如有人找到一种快速因数分解的算法，那么RSA的可靠性就会极度下降。但找到这样的算法的可能性是非常小的。今天只有短的RSA密钥才可能被暴力破解。到2008年为止，世界上还没有任何可靠的攻击RSA算法的方式。</p>
+<p>只要密钥长度足够长，用RSA加密的信息实际上是不能被解破的。”</p>
+</blockquote>
+<p>举例来说，你可以对3233进行因数分解（61×53），但是你没法对下面这个整数进行因数分解。</p>
+<blockquote>
+<p>​       12301866845301177551304949<br>　　58384962720772853569595334<br>　　79219732245215172640050726<br>　　36575187452021997864693899<br>　　56474942774063845925192557<br>　　32630345373154826850791702<br>　　61221429134616704292143116<br>　　02221240479274737794080665<br>　　351419597459856902143413</p>
+</blockquote>
+<p>它等于这样两个质数的乘积：</p>
+<blockquote>
+<p>​       33478071698956898786044169<br>　　84821269081770479498371376<br>　　85689124313889828837938780<br>　　02287614711652531743087737<br>　　814467999489<br>　　　　×<br>　　36746043666799590428244633<br>　　79962795263227915816434308<br>　　76426760322838157396665112<br>　　79233373417143396810270092<br>　　798736308917</p>
+</blockquote>
+<p>事实上，这大概是人类已经分解的最大整数（232个十进制位，768个二进制位）。比它更大的因数分解，还没有被报道过，因此目前被破解的最长RSA密钥就是768位。</p>
+<h3 id="加密和解密"><a href="#加密和解密" class="headerlink" title="加密和解密"></a>加密和解密</h3><p>有了公钥和密钥，就能进行加密和解密了。</p>
+<p>（1）加密要用公钥 (n,e)</p>
+<p>假设鲍勃要向爱丽丝发送加密信息m，他就要用爱丽丝的公钥 (n,e) 对m进行加密。这里需要注意，m必须是整数（字符串可以取ascii值或unicode值），且m必须小于n。</p>
+<p>所谓”加密”，就是算出下式的c：</p>
+<blockquote>
+<p>me ≡ c (mod n)</p>
+</blockquote>
+<p>爱丽丝的公钥是 (3233, 17)，鲍勃的m假设是65，那么可以算出下面的等式：</p>
+<blockquote>
+<p>6517 ≡ 2790 (mod 3233)</p>
+</blockquote>
+<p>于是，c等于2790，鲍勃就把2790发给了爱丽丝。</p>
+<p>（2）解密要用私钥(n,d)</p>
+<p>爱丽丝拿到鲍勃发来的2790以后，就用自己的私钥(3233, 2753) 进行解密。可以证明，下面的等式一定成立：</p>
+<blockquote>
+<p>cd ≡ m (mod n)</p>
+</blockquote>
+<p>也就是说，c的d次方除以n的余数为m。现在，c等于2790，私钥是(3233, 2753)，那么，爱丽丝算出</p>
+<blockquote>
+<p>27902753 ≡ 65 (mod 3233)</p>
+</blockquote>
+<p>因此，爱丽丝知道了鲍勃加密前的原文就是65。</p>
+<p>至此，”加密–解密”的整个过程全部完成。</p>
+<p>我们可以看到，如果不知道d，就没有办法从c求出m。而前面已经说过，要知道d就必须分解n，这是极难做到的，所以RSA算法保证了通信安全。</p>
+<p>你可能会问，公钥(n,e) 只能加密小于n的整数m，那么如果要加密大于n的整数，该怎么办？有两种解决方法：一种是把长信息分割成若干段短消息，每段分别加密；另一种是先选择一种”对称性加密算法”（比如<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%B5%84%E6%96%99%E5%8A%A0%E5%AF%86%E6%A0%87%E5%87%86">DES</a>），用这种算法的密钥加密信息，再用RSA公钥加密DES密钥。</p>
+<p>但是RSA比较慢，rsa慢在他以幂模运算为基础，也就是c^e mod N。</p>
+<h3 id="解密和加密的证明"><a href="#解密和加密的证明" class="headerlink" title="解密和加密的证明"></a>解密和加密的证明</h3><p>最后，我们来证明，为什么用私钥解密，一定可以正确地得到m。也就是证明下面这个式子：</p>
+<blockquote>
+<p>cd ≡ m (mod n)</p>
+</blockquote>
+<p>因为，根据加密规则</p>
+<blockquote>
+<p>ｍe ≡ c (mod n)</p>
+</blockquote>
+<p>于是，c可以写成下面的形式：</p>
+<blockquote>
+<p>c &#x3D; me - kn</p>
+</blockquote>
+<p>将c代入要我们要证明的那个解密规则：</p>
+<blockquote>
+<p>(me - kn)d ≡ m (mod n)</p>
+</blockquote>
+<p>它等同于求证</p>
+<blockquote>
+<p>med ≡ m (mod n)</p>
+</blockquote>
+<p>由于</p>
+<blockquote>
+<p>ed ≡ 1 (mod φ(n))</p>
+</blockquote>
+<p>所以</p>
+<blockquote>
+<p>ed &#x3D; hφ(n)+1</p>
+</blockquote>
+<p>将ed代入：</p>
+<blockquote>
+<p>mhφ(n)+1 ≡ m (mod n)</p>
+</blockquote>
+<p>接下来，分成两种情况证明上面这个式子。</p>
+<p>（1）m与n互质。</p>
+<p>根据欧拉定理，此时</p>
+<blockquote>
+<p>mφ(n) ≡ 1 (mod n)</p>
+</blockquote>
+<p>得到</p>
+<blockquote>
+<p>(mφ(n))h × m ≡ m (mod n)</p>
+</blockquote>
+<p>原式得到证明。</p>
+<p>（2）m与n不是互质关系。</p>
+<p>此时，由于n等于质数p和q的乘积，所以m必然等于kp或kq。</p>
+<p>以 m &#x3D; kp为例，考虑到这时k与q必然互质，则根据欧拉定理，下面的式子成立：</p>
+<blockquote>
+<p>(kp)q-1 ≡ 1 (mod q)</p>
+</blockquote>
+<p>进一步得到</p>
+<blockquote>
+<p>[(kp)q-1]h(p-1) × kp ≡ kp (mod q)</p>
+</blockquote>
+<p>即</p>
+<blockquote>
+<p>(kp)ed ≡ kp (mod q)</p>
+</blockquote>
+<p>将它改写成下面的等式</p>
+<blockquote>
+<p>(kp)ed &#x3D; tq + kp</p>
+</blockquote>
+<p>这时t必然能被p整除，即 t&#x3D;t’p</p>
+<blockquote>
+<p>(kp)ed &#x3D; t’pq + kp</p>
+</blockquote>
+<p>因为 m&#x3D;kp，n&#x3D;pq，所以</p>
+<blockquote>
+<p>med ≡ m (mod n)</p>
+</blockquote>
+<p>原式得到证明。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://qingheblog.online/%E7%AE%97%E6%B3%95/RSA%E5%8E%9F%E7%90%86/" data-id="cmdft9llg000cydwcgoq1cx4z" data-title="RSA原理" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
+
+
+  <nav id="page-nav">
+    
+    <a class="extend prev" rel="prev" href="/page/3/">&laquo; 上一页</a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span>
+  </nav>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">分类</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/swift/">swift</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">原理分析</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/">工作总结</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%91%84%E5%BD%B1/">摄影</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">源码解读</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E7%AE%97%E6%B3%95/">算法</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%80%86%E5%90%91/">逆向</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/">项目优化</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/development/" rel="tag">development</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/flutter/" rel="tag">flutter</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ios/" rel="tag">ios</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/mapbox/" rel="tag">mapbox</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/plugin/" rel="tag">plugin</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spm/" rel="tag">spm</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/development/" style="font-size: 10px;">development</a> <a href="/tags/flutter/" style="font-size: 10px;">flutter</a> <a href="/tags/ios/" style="font-size: 10px;">ios</a> <a href="/tags/mapbox/" style="font-size: 10px;">mapbox</a> <a href="/tags/plugin/" style="font-size: 10px;">plugin</a> <a href="/tags/spm/" style="font-size: 10px;">spm</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2025/07/">七月 2025</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/12/">十二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/07/">七月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/05/">五月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/04/">四月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/03/">三月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/02/">二月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2021/01/">一月 2021</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/12/">十二月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/11/">十一月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/08/">八月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/05/">五月 2020</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/04/">四月 2020</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/uncategorized/hello-world/">Hello World</a>
+          </li>
+        
+          <li>
+            <a href="/%E9%A1%B9%E7%9B%AE%E4%BC%98%E5%8C%96/Flutter-Plugin%E4%BB%8ECocoaPods%E8%BF%81%E7%A7%BB%E5%88%B0SPM/">Flutter Plugin 从 CocoaPods 迁移到 SPM</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/iOS%E7%9A%84APP%E7%98%A6%E8%BA%AB/">iOS的APP瘦身</a>
+          </li>
+        
+          <li>
+            <a href="/uncategorized/%E4%BA%91%E9%9B%86iOS%E7%BB%84%E4%BB%B6%E4%BA%8C%E8%BF%9B%E5%88%B6%E5%8C%96%E5%AE%9E%E8%B7%B5/">iOS组件二进制化实践</a>
+          </li>
+        
+          <li>
+            <a href="/%E5%B7%A5%E4%BD%9C%E6%80%BB%E7%BB%93/Airtest%E7%9A%84%E7%AE%80%E5%8D%95%E4%BD%BF%E7%94%A8/">Airtest的简单使用</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2025 青禾<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>
